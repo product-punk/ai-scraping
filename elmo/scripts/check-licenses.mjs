@@ -1,0 +1,184 @@
+#!/usr/bin/env node
+
+/**
+ * License compliance checker for the Elmo monorepo.
+ *
+ * Ensures every dependency uses a license compatible with distributing
+ * Elmo itself under MIT. Runs `pnpm licenses list --json` and validates
+ * the output against an allow-list of SPDX identifiers plus a set of
+ * per-package exceptions for known-safe outliers. The allow-list is
+ * limited to permissive licenses so that nothing we ship pulls in
+ * copyleft terms that would conflict with MIT redistribution.
+ *
+ * Exit codes:
+ *   0 – all packages pass
+ *   1 – one or more packages have disallowed licenses
+ */
+
+import { execSync } from "node:child_process";
+
+// ── Allowed SPDX license identifiers ────────────────────────────────
+// Permissive licenses compatible with MIT redistribution, plus MPL-2.0.
+// MPL-2.0 is file-level copyleft: used as an unmodified dependency it places no
+// obligations on Elmo's own MIT-licensed code (e.g. lightningcss for CSS).
+// Strong copyleft (GPL/LGPL/AGPL) is intentionally NOT added — its terms would
+// conflict with shipping Elmo under MIT.
+const ALLOWED_LICENSES = new Set([
+  "MIT",
+  "MIT-0",
+  "MIT License",
+  "ISC",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "0BSD",
+  "Apache-2.0",
+  "BlueOak-1.0.0",
+  "CC0-1.0",
+  "Unlicense",
+  "MPL-2.0",
+  // Compound expressions where every component is permissive
+  "(MIT OR Apache-2.0)",
+  "MIT OR Apache-2.0",
+  "(MIT OR CC0-1.0)",
+  "(MIT AND Zlib)",
+  "MIT AND ISC",
+  "(Apache-2.0 AND MIT)",
+  "(AFL-2.1 OR BSD-3-Clause)",
+  "(BSD-3-Clause OR GPL-2.0)", // dual-licensed – we use BSD-3-Clause
+  "(MPL-2.0 OR Apache-2.0)", // dual-licensed – we use Apache-2.0
+  // Transitive deps of @usebruno/cli (e2e API tests); every component permissive.
+  "(BSD-3-Clause AND Apache-2.0)", // google-protobuf
+  "(Public Domain OR MIT)", // tv4 – we use MIT
+  // Parenthesized OR-expressions where every alternative is permissive.
+  "(MIT OR WTFPL)", // expand-template
+  "(BSD-2-Clause OR MIT OR Apache-2.0)", // rc
+]);
+
+// ── Per-package exceptions ───────────────────────────────────────────
+// Packages whose licenses are NOT in the allow-list above but are
+// acceptable for documented reasons. Keep this list small and justified.
+const PACKAGE_EXCEPTIONS = new Map([
+  // Sentry CLI – build-time tooling only, never distributed with Elmo.
+  // FSL-1.1-MIT converts to MIT after two years.
+  ["@sentry/cli", "FSL-1.1-MIT"],
+  ["@sentry/cli-darwin", "FSL-1.1-MIT"],
+  ["@sentry/cli-darwin-arm64", "FSL-1.1-MIT"],
+  ["@sentry/cli-darwin-x64", "FSL-1.1-MIT"],
+  ["@sentry/cli-linux-arm", "FSL-1.1-MIT"],
+  ["@sentry/cli-linux-arm64", "FSL-1.1-MIT"],
+  ["@sentry/cli-linux-x64", "FSL-1.1-MIT"],
+  ["@sentry/cli-win32-i686", "FSL-1.1-MIT"],
+  ["@sentry/cli-win32-x64", "FSL-1.1-MIT"],
+
+  // Web fonts – OFL-1.1 permits bundling in web applications.
+  ["@fontsource/geist-mono", "OFL-1.1"],
+  ["@fontsource/geist-sans", "OFL-1.1"],
+  ["@fontsource/titan-one", "OFL-1.1"],
+
+  // caniuse browser-compat data – CC-BY-4.0 requires attribution only.
+  ["caniuse-lite", "CC-BY-4.0"],
+
+  // argparse – Python-2.0 is a permissive license (PSF variant).
+  ["argparse", "Python-2.0"],
+
+  // Packages with "Unknown" in pnpm but verified MIT via LICENSE file.
+  ["khroma", "Unknown"],
+  ["spawndamnit", "Unknown"],
+  ["json-query", "Unknown"],
+
+  // yuku-analyzer native bindings (transitive via knip). The 0.6.x platform
+  // binding packages ship only a .node binary and omit the `license` field, so
+  // pnpm reports "Unknown". The yuku-toolchain repository and parent packages
+  // declare MIT. All platform variants are listed so the check passes on any host.
+  ["@yuku-analyzer/binding-darwin-arm64", "Unknown"],
+  ["@yuku-analyzer/binding-darwin-x64", "Unknown"],
+  ["@yuku-analyzer/binding-freebsd-x64", "Unknown"],
+  ["@yuku-analyzer/binding-linux-arm-gnu", "Unknown"],
+  ["@yuku-analyzer/binding-linux-arm-musl", "Unknown"],
+  ["@yuku-analyzer/binding-linux-arm64-gnu", "Unknown"],
+  ["@yuku-analyzer/binding-linux-arm64-musl", "Unknown"],
+  ["@yuku-analyzer/binding-linux-x64-gnu", "Unknown"],
+  ["@yuku-analyzer/binding-linux-x64-musl", "Unknown"],
+  ["@yuku-analyzer/binding-win32-arm64", "Unknown"],
+  ["@yuku-analyzer/binding-win32-x64", "Unknown"],
+]);
+
+// ─────────────────────────────────────────────────────────────────────
+
+function run() {
+  console.log("Running pnpm licenses list --json ...\n");
+
+  let raw;
+  try {
+    raw = execSync("pnpm licenses list --json", {
+      encoding: "utf-8",
+      maxBuffer: 50 * 1024 * 1024,
+    });
+  } catch (err) {
+    // pnpm reports its own failures (e.g. ERR_PNPM_MISSING_PACKAGE_INDEX_FILE)
+    // as JSON on stdout, which execSync captures rather than forwards.
+    console.error("Failed to run pnpm licenses list:", err.message);
+    if (err.stdout) console.error(err.stdout.toString().trim());
+    if (err.stderr) console.error(err.stderr.toString().trim());
+    process.exit(1);
+  }
+
+  const data = JSON.parse(raw);
+
+  let totalPackages = 0;
+  const violations = [];
+
+  for (const [license, packages] of Object.entries(data)) {
+    for (const pkg of packages) {
+      totalPackages++;
+      const name = pkg.name;
+
+      if (ALLOWED_LICENSES.has(license)) {
+        continue;
+      }
+
+      // OR-expressions: if every alternative is itself an allowed license,
+      // the package as a whole is fine (the consumer picks whichever
+      // alternative suits them). For example "MIT OR WTFPL" is fine because
+      // MIT is in the allow-list; "BSD-2-Clause OR MIT OR Apache-2.0" is
+      // fine because all three components are.
+      if (/^(\w[\w.-]*)(?: OR (\w[\w.-]*))+$/.test(license)) {
+        const parts = license.split(/\s+OR\s+/);
+        if (parts.every((p) => ALLOWED_LICENSES.has(p))) {
+          continue;
+        }
+      }
+
+      const exception = PACKAGE_EXCEPTIONS.get(name);
+      if (exception === license) {
+        continue;
+      }
+
+      violations.push({ name, versions: pkg.versions, license });
+    }
+  }
+
+  console.log(`Scanned ${totalPackages} packages.\n`);
+
+  if (violations.length === 0) {
+    console.log("All dependency licenses are compliant.");
+    process.exit(0);
+  }
+
+  console.error(
+    `Found ${violations.length} package(s) with disallowed licenses:\n`,
+  );
+  for (const v of violations) {
+    console.error(`  ${v.name}@${v.versions.join(", ")}  →  ${v.license}`);
+  }
+  console.error(
+    "\nTo resolve: either add the license to ALLOWED_LICENSES or add a",
+  );
+  console.error(
+    "per-package exception (with justification) to PACKAGE_EXCEPTIONS",
+  );
+  console.error("in scripts/check-licenses.mjs.");
+  process.exit(1);
+}
+
+run();

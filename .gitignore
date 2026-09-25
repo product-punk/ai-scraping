@@ -1,0 +1,13 @@
+# secrets — never commit
+.env
+.env.*
+**/.env
+**/.env.*
+
+# deps / build
+node_modules/
+**/node_modules/
+dist/
+build/
+.turbo/
+.DS_Store

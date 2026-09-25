@@ -1,0 +1,203 @@
+/// <reference types="vite/client" />
+
+// Preloaded so the wordmark font downloads in parallel with the CSS rather than
+// after it. Must resolve to the same emitted asset as the @font-face src.
+import titanOneFont from "@fontsource/titan-one/files/titan-one-latin-400-normal.woff2?url";
+import { TanStackDevtools } from "@tanstack/react-devtools";
+import type { QueryClient } from "@tanstack/react-query";
+import { createRootRouteWithContext, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
+import { DEFAULT_APP_ICON, ELMO_THEME_COLOR } from "@workspace/config/constants";
+import type { MissingEnvVar } from "@workspace/config/env";
+import { legalUrl } from "@workspace/config/legal";
+import type { DeploymentMode } from "@workspace/config/types";
+import { CookieConsentBanner } from "@workspace/ui/consent/cookie-consent-banner";
+import { isConsentRequired } from "@workspace/ui/lib/cookie-consent";
+import { useEffect, useState } from "react";
+import { usesWordmarkFont } from "@/components/logo";
+import MissingEnvPage from "@/components/missing-env-page";
+import { NotFoundPage } from "@/components/not-found-page";
+import queryDevtools from "@/integrations/tanstack-query/devtools";
+import { initClarity } from "@/lib/clarity";
+import { rootConfigQuery } from "@/lib/config/queries";
+import { initCrisp } from "@/lib/crisp";
+import { initAnalytics } from "@/lib/posthog";
+import type { PublicClientConfig } from "@/server/config";
+import appCss from "../styles.css?url";
+
+// clientConfig and envValidation are optional because the router renders against
+// its base context — which has neither — until this route's beforeLoad resolves.
+interface RouterContext {
+	queryClient: QueryClient;
+	clientConfig?: PublicClientConfig;
+	envValidation?: {
+		mode: DeploymentMode;
+		missing: MissingEnvVar[];
+		isValid: boolean;
+	};
+	/** Whether the request came from a country that requires prior cookie consent. */
+	consentRegion?: boolean | null;
+}
+
+export const Route = createRootRouteWithContext<RouterContext>()({
+	notFoundComponent: NotFoundPage,
+	beforeLoad: ({ context }) => context.queryClient.ensureQueryData(rootConfigQuery),
+	head: ({ match }) => {
+		const branding = match.context?.clientConfig?.branding;
+		const analytics = match.context?.clientConfig?.analytics;
+		const scripts = [];
+		if (analytics?.plausibleDomain) {
+			scripts.push({
+				src: "/api/plausible/js/script",
+				defer: true,
+				"data-domain": analytics.plausibleDomain,
+				"data-api": "/api/plausible/event",
+			});
+		}
+
+		const hasCustomIcon = Boolean(branding?.icon && branding.icon !== DEFAULT_APP_ICON);
+		const appName = branding?.name || "Elmo";
+		const themeColor = hasCustomIcon ? "#000000" : ELMO_THEME_COLOR;
+		const appUrl = branding?.url ? branding.url.replace(/\/$/, "") : undefined;
+
+		const title = `${appName} - AI Search Optimization`;
+		const description = "Track and optimize your brand's visibility across AI models.";
+		// Don't pass `title` to /api/og — the renderer already shows the brand
+		// (Elmo logo or whitelabel icon + name), so a "Brand - AI Search Optimization"
+		// title would render redundantly. Pages that override og:image can supply
+		// a page-specific title via the query param.
+		const ogImageParams = new URLSearchParams({ description });
+		const ogImagePath = `/api/og?${ogImageParams.toString()}`;
+		const ogImage = appUrl ? `${appUrl}${ogImagePath}` : ogImagePath;
+		// og:logo is non-standard but used by some unfurlers (LinkedIn). Falls back
+		// to the absolute branding icon URL when available.
+		const ogLogo = (() => {
+			if (!branding?.icon) return undefined;
+			if (branding.icon.startsWith("http")) return branding.icon;
+			return appUrl ? `${appUrl}${branding.icon}` : undefined;
+		})();
+
+		return {
+			meta: [
+				{ title },
+				{ name: "description", content: description },
+				{ charSet: "utf-8" },
+				{ name: "viewport", content: "width=device-width, initial-scale=1" },
+				{ name: "theme-color", content: themeColor },
+				{ name: "apple-mobile-web-app-title", content: appName },
+				{ property: "og:site_name", content: appName },
+				{ property: "og:locale", content: "en_US" },
+				{ property: "og:title", content: title },
+				{ property: "og:description", content: description },
+				{ property: "og:image", content: ogImage },
+				{ property: "og:image:width", content: "1200" },
+				{ property: "og:image:height", content: "630" },
+				{ property: "og:type", content: "website" },
+				...(appUrl ? [{ property: "og:url", content: appUrl }] : []),
+				...(ogLogo ? [{ property: "og:logo", content: ogLogo }] : []),
+				{ name: "twitter:card", content: "summary_large_image" },
+				{ name: "twitter:title", content: title },
+				{ name: "twitter:description", content: description },
+				{ name: "twitter:image", content: ogImage },
+			],
+			links: [
+				// Whitelabel deployments render an icon + system-font name instead,
+				// so the wordmark font is never used there.
+				...(usesWordmarkFont(branding)
+					? [
+							{
+								rel: "preload",
+								as: "font",
+								type: "font/woff2",
+								href: titanOneFont,
+								// Inside a conditional spread the literal widens to `string`,
+								// which doesn't satisfy React's `CrossOrigin` union.
+								crossOrigin: "anonymous" as const,
+							},
+						]
+					: []),
+				{ rel: "stylesheet", href: appCss },
+				{ rel: "manifest", href: "/api/manifest" },
+				// Whitelabel uses its own icon URL for both favicon and iOS touch;
+				// Elmo default uses the committed SVG + opaque 180×180 PNG.
+				...(hasCustomIcon && branding?.icon
+					? [
+							{ rel: "icon", type: "image/png", href: branding.icon },
+							{ rel: "apple-touch-icon", href: branding.icon },
+						]
+					: [
+							// Icons live under /icons/ (not the root) so browsers' default
+							// probes for /favicon.ico and /apple-touch-icon.png 404 on
+							// whitelabel deployments instead of picking up Elmo assets.
+							{ rel: "icon", type: "image/svg+xml", href: "/icons/elmo-icon.svg" },
+							{ rel: "icon", type: "image/png", sizes: "96x96", href: "/icons/elmo-icon-96.png" },
+							{ rel: "icon", type: "image/x-icon", href: "/icons/favicon.ico" },
+							{ rel: "apple-touch-icon", href: "/icons/apple-touch-icon.png" },
+						]),
+			],
+			scripts,
+		};
+	},
+	component: RootComponent,
+});
+
+function RootComponent() {
+	const { envValidation, clientConfig, consentRegion } = Route.useRouteContext();
+	const clarityProjectId = clientConfig?.analytics?.clarityProjectId;
+	const posthogKey = clientConfig?.analytics?.posthogKey;
+	// Only Elmo Cloud asks: a self-hosted deployment is governed by whoever runs
+	// it, and its telemetry already has an operator-level opt-out.
+	const asksForConsent = clientConfig?.mode === "cloud";
+	// Null until the browser resolves it — the time-zone fallback would read the
+	// server's own zone during SSR.
+	const [consentRequired, setConsentRequired] = useState<boolean | null>(null);
+
+	useEffect(() => {
+		const required = asksForConsent ? isConsentRequired(consentRegion ?? null) : false;
+		if (asksForConsent) setConsentRequired(required);
+
+		const stops = [
+			posthogKey ? initAnalytics(posthogKey, required) : undefined,
+			clarityProjectId ? initClarity(clarityProjectId, required) : undefined,
+		];
+		return () => {
+			for (const stop of stops) stop?.();
+		};
+	}, [posthogKey, clarityProjectId, asksForConsent, consentRegion]);
+
+	useEffect(() => {
+		if (!clientConfig) return;
+		initCrisp(clientConfig.analytics?.crispWebsiteId, clientConfig.mode);
+	}, [clientConfig]);
+
+	// Only swap in the missing-env page once we actually know env is invalid —
+	// envValidation is absent while a navigation's root beforeLoad is in flight.
+	if (envValidation && !envValidation.isValid) {
+		return (
+			<html lang="en">
+				<head>
+					<HeadContent />
+				</head>
+				<body className="font-sans antialiased">
+					<MissingEnvPage mode={envValidation.mode} missing={envValidation.missing} />
+					<Scripts />
+				</body>
+			</html>
+		);
+	}
+
+	return (
+		<html lang="en">
+			<head>
+				<HeadContent />
+			</head>
+			<body className="font-sans antialiased">
+				<Outlet />
+				{asksForConsent && consentRequired !== null && (
+					<CookieConsentBanner consentRequired={consentRequired} policyHref={legalUrl("cookies")} />
+				)}
+				<TanStackDevtools plugins={[queryDevtools]} />
+				<Scripts />
+			</body>
+		</html>
+	);
+}

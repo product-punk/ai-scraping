@@ -1,0 +1,228 @@
+# @workspace/deployment
+
+## 0.4.2
+
+### Patch Changes
+
+- @workspace/config@0.4.2
+  - @workspace/lib@0.4.2
+  - @workspace/ui@0.4.2
+
+## 0.4.1
+
+### Patch Changes
+
+- Updated dependencies [e2543e8]
+  - @workspace/lib@0.4.1
+  - @workspace/config@0.4.1
+  - @workspace/ui@0.4.1
+
+## 0.4.0
+
+### Patch Changes
+
+- Updated dependencies [f6e90d9]
+- Updated dependencies [99f537c]
+- Updated dependencies [c9142f7]
+- Updated dependencies [aa8c80d]
+  - @workspace/lib@0.4.0
+  - @workspace/config@0.4.0
+  - @workspace/ui@0.4.0
+
+## 0.3.0
+
+### Patch Changes
+
+- Updated dependencies [d4e5db4]
+- Updated dependencies [da87272]
+- Updated dependencies [3ba2e5a]
+- Updated dependencies [78593b9]
+- Updated dependencies [f4f7ef2]
+- Updated dependencies [78593b9]
+- Updated dependencies [f87d2e2]
+- Updated dependencies [f87d2e2]
+- Updated dependencies [1f46b62]
+- Updated dependencies [78593b9]
+  - @workspace/whitelabel@0.3.0
+  - @workspace/config@0.3.0
+  - @workspace/cloud@0.3.0
+  - @workspace/local@0.3.0
+
+## 0.2.19
+
+### Patch Changes
+
+- @workspace/cloud@0.2.19
+- @workspace/whitelabel@0.2.19
+- @workspace/config@0.2.19
+- @workspace/local@0.2.19
+
+## 0.2.18
+
+### Patch Changes
+
+- @workspace/cloud@0.2.18
+- @workspace/whitelabel@0.2.18
+- @workspace/config@0.2.18
+- @workspace/local@0.2.18
+
+## 0.2.17
+
+### Patch Changes
+
+- @workspace/whitelabel@0.2.17
+- @workspace/cloud@0.2.17
+- @workspace/config@0.2.17
+- @workspace/local@0.2.17
+
+## 0.2.16
+
+### Patch Changes
+
+- @workspace/whitelabel@0.2.16
+- @workspace/cloud@0.2.16
+- @workspace/config@0.2.16
+- @workspace/local@0.2.16
+
+## 0.2.15
+
+### Patch Changes
+
+- @workspace/cloud@0.2.15
+- @workspace/config@0.2.15
+- @workspace/local@0.2.15
+- @workspace/whitelabel@0.2.15
+
+## 0.2.14
+
+### Patch Changes
+
+- @workspace/config@0.2.14
+- @workspace/local@0.2.14
+- @workspace/whitelabel@0.2.14
+
+## 0.2.13
+
+### Patch Changes
+
+- @workspace/config@0.2.13
+- @workspace/local@0.2.13
+- @workspace/whitelabel@0.2.13
+
+## 0.2.12
+
+### Patch Changes
+
+- @workspace/config@0.2.12
+- @workspace/local@0.2.12
+- @workspace/whitelabel@0.2.12
+
+## 0.2.11
+
+### Patch Changes
+
+- @workspace/config@0.2.11
+- @workspace/local@0.2.11
+- @workspace/whitelabel@0.2.11
+
+## 0.2.10
+
+### Patch Changes
+
+- @workspace/whitelabel@0.2.10
+- @workspace/config@0.2.10
+- @workspace/local@0.2.10
+
+## 0.2.9
+
+### Patch Changes
+
+- @workspace/config@0.2.9
+- @workspace/local@0.2.9
+- @workspace/whitelabel@0.2.9
+
+## 0.2.8
+
+### Patch Changes
+
+- @workspace/config@0.2.8
+- @workspace/local@0.2.8
+- @workspace/whitelabel@0.2.8
+
+## 0.2.7
+
+### Patch Changes
+
+- @workspace/config@0.2.7
+- @workspace/local@0.2.7
+- @workspace/whitelabel@0.2.7
+
+## 0.2.6
+
+### Patch Changes
+
+- @workspace/config@0.2.6
+- @workspace/local@0.2.6
+- @workspace/whitelabel@0.2.6
+
+## 0.2.5
+
+### Patch Changes
+
+- 7cba46d: License Elmo under the MIT License. Add Code of Conduct, Contributing guide, Security policy, and a lightweight CLA process.
+- Updated dependencies [edf97d4]
+- Updated dependencies [7cba46d]
+  - @workspace/config@0.2.5
+  - @workspace/local@0.2.5
+  - @workspace/whitelabel@0.2.5
+
+## 0.2.4
+
+### Patch Changes
+
+- Updated dependencies [67a0389]
+  - @workspace/config@0.2.4
+  - @workspace/local@0.2.4
+  - @workspace/whitelabel@0.2.4
+
+## 0.2.3
+
+### Patch Changes
+
+- @workspace/config@0.2.3
+- @workspace/local@0.2.3
+- @workspace/whitelabel@0.2.3
+
+## 0.2.2
+
+### Patch Changes
+
+- Updated dependencies [d3839b1]
+  - @workspace/local@0.2.2
+  - @workspace/whitelabel@0.2.2
+  - @workspace/config@0.2.2
+
+## 0.2.1
+
+### Patch Changes
+
+- @workspace/whitelabel@0.2.1
+- @workspace/config@0.2.1
+- @workspace/local@0.2.1
+
+## 0.2.0
+
+### Patch Changes
+
+- @workspace/whitelabel@0.2.0
+- @workspace/config@0.2.0
+- @workspace/local@0.2.0
+
+## 0.1.2
+
+### Patch Changes
+
+- @workspace/config@0.1.2
+- @workspace/demo@0.1.2
+- @workspace/local@0.1.2
+- @workspace/whitelabel@0.1.2

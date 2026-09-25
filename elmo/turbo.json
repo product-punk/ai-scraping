@@ -1,0 +1,100 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "globalEnv": [
+    "DATABASE_URL",
+    "APP_URL",
+    "BETTER_AUTH_SECRET",
+    "AUTH0_DOMAIN",
+    "AUTH0_CLIENT_ID",
+    "AUTH0_CLIENT_SECRET",
+    "AUTH0_AUDIENCE",
+    "AUTH0_SCOPE",
+    "AUTH0_MGMT_API_DOMAIN",
+    "UPSTASH_REDIS_REST_URL",
+    "UPSTASH_REDIS_REST_TOKEN",
+    "UPSTASH_REDIS_ENDPOINT",
+    "DATAFORSEO_LOGIN",
+    "DATAFORSEO_PASSWORD",
+    "OPENAI_API_KEY",
+    "ANTHROPIC_API_KEY",
+    "MISTRAL_API_KEY",
+    "SCRAPE_TARGETS",
+    "SEARCHAPI_API_KEY",
+    "OLOSTEP_API_KEY",
+    "BRIGHTDATA_API_TOKEN",
+    "OXYLABS_USERNAME",
+    "OXYLABS_PASSWORD",
+    "CLORO_API_KEY",
+    "OPENROUTER_API_KEY",
+    "JINA_API_KEY",
+    "ELMO_ENCRYPTION_KEY",
+    "ELMO_ENCRYPTION_KEY_OLD",
+    "DEPLOYMENT_MODE",
+    "ADMIN_AUTH0_SUB",
+    "ADMIN_API_KEYS",
+    "DEFAULT_BRAND_DOMAINS",
+    "CLOUD_SIGNUP_ALLOWLIST",
+    "ENVIRONMENT",
+    "VITE_DEPLOYMENT_MODE",
+    "VITE_APP_NAME",
+    "VITE_APP_ICON",
+    "VITE_APP_URL",
+    "VITE_APP_PARENT_NAME",
+    "VITE_APP_PARENT_URL",
+    "VITE_OPTIMIZATION_URL_TEMPLATE",
+    "VITE_PLAUSIBLE_DOMAIN",
+    "VITE_CLARITY_PROJECT_ID",
+    "VITE_ONBOARDING_REDIRECT_URL_TEMPLATE",
+    "VITE_AUTH0_DOMAIN",
+    "VITE_AUTH0_CLIENT_ID",
+    "BLOB_READ_WRITE_TOKEN",
+    "SENTRY_DSN",
+    "SENTRY_ORG",
+    "SENTRY_PROJECT",
+    "SENTRY_AUTH_TOKEN",
+    "VITE_SENTRY_DSN",
+    "VITE_POSTHOG_KEY",
+    "VITE_CHART_COLORS",
+    "DISABLE_TELEMETRY",
+    "STRIPE_SECRET_KEY",
+    "STRIPE_WEBHOOK_SECRET",
+    "RESEND_API_KEY",
+    "GOOGLE_CLIENT_ID",
+    "GOOGLE_CLIENT_SECRET",
+    "RESEND_FROM_EMAIL"
+  ],
+  "tasks": {
+    "//#format": {
+      "cache": false
+    },
+    "//#lint": {},
+    "//#lint:fix": {
+      "cache": false
+    },
+    "build": {
+      "dependsOn": ["^build", "check-types"],
+      "outputs": [".output/**", ".vercel/output/**", "dist/**"]
+    },
+    "@workspace/worker#build": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "codegen": {
+      "outputs": [".source/**"]
+    },
+    "@workspace/lib#codegen": {
+      "inputs": ["$TURBO_DEFAULT$", "!src/db/schema-auth.ts"],
+      "outputs": ["src/db/schema-auth.ts"]
+    },
+    "check-types": {
+      "dependsOn": ["^check-types", "codegen"]
+    },
+    "test": {
+      "dependsOn": ["^build"]
+    },
+    "dev": {
+      "persistent": true,
+      "cache": false
+    }
+  }
+}

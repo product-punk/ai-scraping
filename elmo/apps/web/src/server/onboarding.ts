@@ -1,0 +1,83 @@
+/**
+ * Server functions for the onboarding wizard + brand analysis.
+ *
+ * This file ONLY exports createServerFn server functions. No regular function
+ * exports, no class exports, no db imports. TanStack Start replaces server
+ * functions with lightweight RPC stubs on the client — but only if the module
+ * doesn't drag in server-only dependencies (db, drizzle, pg) via other
+ * exports. Keeping this file server-fn-only guarantees the client bundle
+ * stays clean.
+ *
+ * Regular functions (createBrand, updateBrand, etc.) live in
+ * ./onboarding-core.ts, imported only by API routes (server-only).
+ */
+import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
+import {
+	type AnalyzeBrandStatus,
+	cancelAnalyzeBrand,
+	enqueueAnalyzeBrand,
+	getAnalyzeBrandStatus,
+} from "@/lib/analyze-brand-job";
+import { requireBrandSession } from "@/lib/auth/helpers";
+import { saveWizardOnboarding, wizardOnboardingInputSchema } from "@/server/onboarding-core";
+
+/**
+ * Kick off brand analysis as a background job.
+ *
+ * Brand analysis is an LLM + web-search call that routinely runs ~1 minute,
+ * which blows past reverse-proxy read timeouts when executed inline (the user
+ * gets a 504 even though the work succeeds). The worker processes the job; the
+ * client polls `getAnalyzeBrandStatusFn` (by brand) for the result.
+ *
+ * Scoped to the brand's owning org: the caller must have access to the brand
+ * both to start an analysis and to read it back, so a job's output never
+ * leaks outside the org that requested it.
+ */
+export const startAnalyzeBrandFn = createServerFn({ method: "POST" })
+	.validator(
+		z.object({
+			brandId: z.string().min(1),
+			website: z.string().min(1),
+			brandName: z.string().optional(),
+		}),
+	)
+	.handler(async ({ data }) => {
+		await requireBrandSession(data.brandId);
+		await enqueueAnalyzeBrand(data);
+		return { ok: true };
+	});
+
+/**
+ * Poll the status/result of the latest brand-analysis job for a brand.
+ *
+ * POST (not GET) on purpose: the response changes on every poll, so we don't
+ * want a browser/CDN/reverse-proxy caching an early `pending` and starving the
+ * wizard of the eventual result.
+ */
+export const getAnalyzeBrandStatusFn = createServerFn({ method: "POST" })
+	.validator(z.object({ brandId: z.string().min(1) }))
+	.handler(async ({ data }): Promise<AnalyzeBrandStatus> => {
+		await requireBrandSession(data.brandId);
+		return getAnalyzeBrandStatus(data.brandId);
+	});
+
+/** Cancel the in-flight brand-analysis job for a brand (e.g. user backs out). */
+export const cancelAnalyzeBrandFn = createServerFn({ method: "POST" })
+	.validator(z.object({ brandId: z.string().min(1) }))
+	.handler(async ({ data }) => {
+		await requireBrandSession(data.brandId);
+		await cancelAnalyzeBrand(data.brandId);
+		return { ok: true };
+	});
+
+/**
+ * Persist the wizard's reviewed onboarding result for a brand the user
+ * already has access to.
+ */
+export const updateOnboardedBrandFn = createServerFn({ method: "POST" })
+	.validator(wizardOnboardingInputSchema)
+	.handler(async ({ data }) => {
+		await requireBrandSession(data.brandId);
+		return saveWizardOnboarding(data);
+	});

@@ -1,0 +1,189 @@
+---
+title: Commands Reference
+description: All development scripts and commands for working on Elmo.
+---
+
+## Development
+
+```bash
+# Run all dev servers (turbo)
+pnpm dev
+
+# Run only the web app
+pnpm --filter @workspace/web dev
+
+# Run only the worker
+pnpm --filter @workspace/worker dev
+```
+
+## Building
+
+```bash
+# Build all packages
+pnpm build
+
+# Build only the web app
+pnpm --filter @workspace/web build
+
+# Type check every package
+pnpm turbo check-types
+```
+
+## Testing
+
+```bash
+# Run the unit tests across every package
+pnpm test
+
+# Run the tests for scripts/, which sits outside the workspace
+pnpm test:scripts
+```
+
+Storybook stories double as browser tests. They run in Vitest's browser mode, so
+they need a browser installed before the first run:
+
+```bash
+pnpm --filter @workspace/web exec playwright install chromium
+pnpm --filter @workspace/web test:storybook
+```
+
+The analytics stats are checked against a real Postgres. These tests migrate the
+database in `TEST_DATABASE_URL` and write to it, so they refuse to run unless it
+points at a local database whose name ends in `_test`:
+
+```bash
+createdb elmo_test
+TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/elmo_test \
+  pnpm --filter @workspace/web test:integration
+```
+
+### End-to-End Tests
+
+`.github/workflows/e2e.yaml` is the source of truth for E2E orchestration — it
+stands up one Dockerized container per deployment mode, seeds them, and runs the
+suites in order. Replay the whole thing locally with
+[act](https://github.com/nektos/act):
+
+```bash
+pnpm test:e2e-local
+```
+
+The scripts below each run one mode's suite against a stack that workflow has
+already brought up, which is what you want when iterating on a single spec:
+
+```bash
+# Playwright specs
+pnpm test:e2e
+pnpm test:e2e:cloud
+pnpm test:e2e:whitelabel
+pnpm test:e2e:demo
+
+# Bruno API suites
+pnpm test:api
+pnpm test:api:cloud
+pnpm test:api:demo
+```
+
+## Code Quality
+
+```bash
+# Check formatting, lint and import order — the same check CI runs
+pnpm lint
+
+# Fix everything Biome can fix on its own
+pnpm lint:fix
+
+# Format code with Biome
+pnpm format
+
+# Find unused exports and dependencies
+pnpm knip
+
+# Lint the hand-written OpenAPI document
+pnpm lint:spec
+
+# Check every dependency's license against the MIT-compatible allow-list
+pnpm license-check
+```
+
+Always run `pnpm format` before committing to ensure consistent code style across the codebase.
+
+## Database
+
+`drizzle.config.ts` and the migrations live in `packages/lib`, so Drizzle runs
+against that package:
+
+```bash
+# Generate a new migration after schema changes
+pnpm --filter @workspace/lib exec drizzle-kit generate
+
+# Run pending migrations
+pnpm --filter @workspace/lib exec drizzle-kit migrate
+```
+
+Apply schema changes with `drizzle-kit migrate` only. See
+[Architecture](/docs/developer-guide/architecture#database) for why `drizzle-kit
+push` is unsafe against a deployment.
+
+## Component Stories
+
+```bash
+# Start the Storybook dev server on port 6006
+pnpm --filter @workspace/web storybook
+
+# Build the static Storybook
+pnpm --filter @workspace/web storybook:build
+```
+
+## CLI Development
+
+```bash
+# Run CLI directly from source
+pnpm elmo <command>
+
+# Build and link CLI globally for testing
+pnpm cli:link
+
+# Unlink global CLI
+pnpm cli:unlink
+```
+
+## Docker
+
+```bash
+# Build Docker images locally
+elmo compose build
+
+# Build without cache
+elmo compose build --no-cache
+
+# Build only web or worker
+elmo compose build web
+elmo compose build worker
+
+# Run other docker compose commands
+elmo compose up -d
+elmo compose ps
+elmo compose logs -f web
+elmo compose down
+```
+
+## Versioning
+
+```bash
+# Create a changeset (do this before every PR)
+pnpm changeset
+
+# Apply changesets and bump versions (maintainers only)
+pnpm version-packages
+```
+
+## Turborepo
+
+The monorepo uses Turborepo for parallel task execution and caching. Most commands are defined in `turbo.json` and can be run from the repo root via `pnpm <script>`.
+
+To run a command for a specific package:
+
+```bash
+pnpm --filter @workspace/<package-name> <command>
+```

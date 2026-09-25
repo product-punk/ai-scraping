@@ -1,0 +1,48 @@
+# License Compliance Check
+#
+# Validates that all dependencies use licenses compatible with MIT.
+# Runs on every push/PR to main and can be triggered manually.
+# Lightweight – only needs Node + pnpm, no Docker or databases.
+
+name: License Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  license-check:
+    name: Dependency License Audit
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    # The audit is ~20s of work; the budget only has to be wide enough that a
+    # slow pnpm/npm registry during setup can't spend it before the audit runs.
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6.1.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Check dependency licenses
+        run: pnpm license-check

@@ -1,0 +1,114 @@
+name: Test Providers
+
+on:
+  schedule:
+    - cron: "0 0,6,12,18 * * *"
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Comma-separated scrape targets to test (e.g. "chatgpt:olostep:online,gemini:olostep:online"). Leave empty to test all.'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test Providers
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    # All targets run in parallel on a single runner (they're I/O-bound waiting
+    # on external provider APIs), so the job wall-clock is ~the slowest target.
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6.1.0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --no-frozen-lockfile
+      - name: Test providers
+        id: test
+        timeout-minutes: 35
+        continue-on-error: true
+        env:
+          SEARCHAPI_API_KEY: ${{ secrets.SEARCHAPI_API_KEY }}
+          OLOSTEP_API_KEY: ${{ secrets.OLOSTEP_API_KEY }}
+          BRIGHTDATA_API_TOKEN: ${{ secrets.BRIGHTDATA_API_TOKEN }}
+          OXYLABS_USERNAME: ${{ secrets.OXYLABS_USERNAME }}
+          OXYLABS_PASSWORD: ${{ secrets.OXYLABS_PASSWORD }}
+          CLORO_API_KEY: ${{ secrets.CLORO_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          DATAFORSEO_LOGIN: ${{ secrets.DATAFORSEO_LOGIN }}
+          DATAFORSEO_PASSWORD: ${{ secrets.DATAFORSEO_PASSWORD }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          # Empty on the schedule (script tests the full monitored set);
+          # workflow_dispatch can pass a comma-separated subset to override.
+          TARGET_OVERRIDE: ${{ inputs.target }}
+        run: |
+          if [ -n "$TARGET_OVERRIDE" ]; then
+            pnpm tsx apps/worker/scripts/test-provider.ts --target "$TARGET_OVERRIDE" --output-json result.json
+          else
+            pnpm tsx apps/worker/scripts/test-provider.ts --output-json result.json
+          fi
+      - name: Push results to Upstash Redis
+        if: always() && hashFiles('result.json') != ''
+        env:
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+        run: |
+          node -e '
+          const fs = require("fs");
+          if (!fs.existsSync("result.json")) process.exit(0);
+          const results = JSON.parse(fs.readFileSync("result.json", "utf8"));
+          const url = process.env.UPSTASH_REDIS_REST_URL;
+          const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+          if (!url || !token) { console.log("No Upstash credentials, skipping"); process.exit(0); }
+
+          async function push() {
+            for (const r of Array.isArray(results) ? results : [results]) {
+              const ts = Date.now();
+              const key = `provider-status:${r.target}`;
+              const value = JSON.stringify({
+                ts: r.timestamp || new Date().toISOString(),
+                status: r.status,
+                latency: r.latency,
+                retries: r.retries || 0,
+                textLength: r.textLength,
+                rawOutputBytes: r.rawOutputBytes,
+                citations: r.citations,
+                webQueries: r.webQueries,
+                webSearch: r.webSearch,
+                error: r.error || null,
+              });
+              // ZADD with timestamp score
+              const res = await fetch(`${url}/zadd/${encodeURIComponent(key)}/${ts}/${encodeURIComponent(value)}`, {
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              if (!res.ok) console.error(`Failed to push ${r.target}:`, await res.text());
+              else console.log(`Pushed ${r.target} to Redis`);
+
+              // Trim to last 30 days (remove entries older than 30d)
+              const cutoff = ts - 30 * 24 * 60 * 60 * 1000;
+              await fetch(`${url}/zremrangebyscore/${encodeURIComponent(key)}/0/${cutoff}`, {
+                headers: { Authorization: `Bearer ${token}` },
+              });
+            }
+          }
+          push().catch(e => { console.error(e); process.exit(1); });
+          '
+      - name: Upload results artifact
+        if: always() && hashFiles('result.json') != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: provider-results
+          path: result.json
+          retention-days: 7
+      - name: Fail job if any target failed
+        if: always() && steps.test.outcome == 'failure'
+        run: |
+          echo "One or more provider targets failed — see the summary for details."
+          exit 1

@@ -1,0 +1,73 @@
+/**
+ * Server function for the Query Fanout page. Read-only — derived entirely from
+ * `prompt_runs.web_queries` (the sub-queries engines run while answering a
+ * prompt), uniformly across providers. Engines that don't expose their
+ * searches contribute runs but no queries. No schema changes.
+ *
+ * Filters (tags/search → prompt IDs, lookback → date range in the user's
+ * timezone) are resolved server-side exactly like Share of Voice, so the same
+ * prompt set and window back every figure on the page. See `server/analysis.ts`.
+ */
+import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
+import { requireBrandSession } from "@/lib/auth/helpers";
+import type { FanoutAnalysis } from "@/lib/fanout-analysis";
+import { lookbackSchema } from "@/lib/lookback";
+import { resolveLookbackRange } from "@/lib/timezone-utils";
+import { getBrandQueryFanout } from "@/server/analytics-core";
+
+export interface QueryFanoutResponse extends FanoutAnalysis {
+	brandName: string;
+	model: string | null;
+	/** Whole-number percentage 0-100, unlike the ratio `FanoutAnalysis` carries. */
+	coverageRate: number;
+}
+
+function _emptyResponse(brandName: string, model: string | null): QueryFanoutResponse {
+	return {
+		brandName,
+		model,
+		totalQueries: 0,
+		uniqueQueries: 0,
+		fanoutRuns: 0,
+		totalRuns: 0,
+		avgPerExecution: 0,
+		coverageRate: 0,
+		topQueries: [],
+		terms: [],
+		wordChanges: { added: [], dropped: [], preserved: [] },
+		byModel: [],
+		byPrompt: [],
+		topByPrompts: [],
+		topByRuns: [],
+	};
+}
+
+export const getQueryFanoutFn = createServerFn({ method: "GET" })
+	.validator(
+		z.object({
+			brandId: z.string(),
+			lookback: lookbackSchema.default("1m"),
+			model: z.string().optional(),
+			tags: z.string().optional(),
+			search: z.string().optional(),
+			/** Scope to a single prompt (prompt-details Web Queries tab) — lists come back uncapped. */
+			promptId: z.string().optional(),
+			timezone: z.string().default("UTC"),
+		}),
+	)
+	.handler(async ({ data }): Promise<QueryFanoutResponse> => {
+		await requireBrandSession(data.brandId);
+
+		const { timezone, fromDateStr, toDateStr } = resolveLookbackRange(data.lookback, data.timezone);
+		const analysis = await getBrandQueryFanout(
+			data.brandId,
+			{ from: fromDateStr, to: toDateStr, timezone },
+			{ model: data.model, tags: data.tags, search: data.search },
+			{ promptId: data.promptId },
+		);
+
+		// coverageRate is a ratio in the shared analysis so the API can publish it
+		// unrounded; the dashboard reads a percentage.
+		return { ...analysis, coverageRate: Math.round(analysis.coverageRate * 100), model: data.model ?? null };
+	});

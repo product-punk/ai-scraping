@@ -1,0 +1,160 @@
+# @workspace/docs
+
+## 0.4.2
+
+### Patch Changes
+
+- @workspace/ui@0.4.2
+
+## 0.4.1
+
+### Patch Changes
+
+- @workspace/ui@0.4.1
+
+## 0.4.0
+
+### Minor Changes
+
+- c9142f7: Elmo now serves a full external API and an MCP server. `/api/v1` covers brands, prompts, competitors, reports, analytics, models, tags, and opportunities. `/api/mcp` connects Claude Code, Codex, Cursor, OpenCode, and VS Code, either by signing in from the client or with an API key. Keys belong to an organization and are issued read-only or read-write from Settings, which now also has API and MCP pages describing your own deployment.
+
+### Patch Changes
+
+- @workspace/ui@0.4.0
+
+## 0.3.0
+
+### Patch Changes
+
+- da87272: Rebuilt the interface on Base UI, so menus, dialogs, tooltips and form controls behave more consistently across keyboard and assistive tech.
+- Updated dependencies [da87272]
+  - @workspace/ui@0.3.0
+
+## 0.2.19
+
+### Patch Changes
+
+- @workspace/ui@0.2.19
+
+## 0.2.18
+
+### Patch Changes
+
+- @workspace/ui@0.2.18
+
+## 0.2.17
+
+### Patch Changes
+
+- Updated dependencies [5a0a40c]
+  - @workspace/ui@0.2.17
+
+## 0.2.16
+
+### Patch Changes
+
+- @workspace/ui@0.2.16
+
+## 0.2.15
+
+### Patch Changes
+
+- @workspace/ui@0.2.15
+
+## 0.2.14
+
+### Patch Changes
+
+- @workspace/ui@0.2.14
+
+## 0.2.13
+
+### Patch Changes
+
+- @workspace/ui@0.2.13
+
+## 0.2.12
+
+### Patch Changes
+
+- @workspace/ui@0.2.12
+
+## 0.2.11
+
+### Patch Changes
+
+- 4ccba7a: Remove `elmo status` — use `elmo compose ps` instead.
+  - @workspace/ui@0.2.11
+
+## 0.2.10
+
+### Patch Changes
+
+- 063e33e: Remove `elmo start`, `elmo stop`, `elmo logs`, and `elmo build` aliases — use `elmo compose <args>` directly (e.g. `elmo compose up -d`, `elmo compose down`, `elmo compose logs -f`, `elmo compose build`).
+  - @workspace/ui@0.2.10
+
+## 0.2.9
+
+### Patch Changes
+
+- @workspace/ui@0.2.9
+
+## 0.2.8
+
+### Patch Changes
+
+- @workspace/ui@0.2.8
+
+## 0.2.7
+
+### Patch Changes
+
+- @workspace/ui@0.2.7
+
+## 0.2.6
+
+### Patch Changes
+
+- @workspace/ui@0.2.6
+
+## 0.2.5
+
+### Patch Changes
+
+- 76e2a5f: Add telemetry opt-out prompt during `elmo init` and new `elmo telemetry status|enable|disable` subcommand. See [Telemetry](https://elmohq.com/docs/developer-guide/telemetry) for what's collected.
+- edf97d4: Add Mistral as a direct API provider. Set `MISTRAL_API_KEY` and target via `mistral:mistral-api:<model>[:online]`.
+- 7cba46d: License Elmo under the MIT License. Add Code of Conduct, Contributing guide, Security policy, and a lightweight CLA process.
+- Updated dependencies [7cba46d]
+  - @workspace/ui@0.2.5
+
+## 0.2.4
+
+### Patch Changes
+
+- @workspace/ui@0.2.4
+
+## 0.2.3
+
+### Patch Changes
+
+- @workspace/ui@0.2.3
+
+## 0.2.2
+
+### Patch Changes
+
+- 06fb190: Worker dispatch now reads `SCRAPE_TARGETS` end-to-end via the provider registry. Deployments that configure non-default providers no longer hit `AI_LoadAPIKeyError` for providers they never set up, the worker fails fast at startup on misconfigured `SCRAPE_TARGETS`, and `brand.enabledModels` filters per brand.
+  - @workspace/ui@0.2.2
+
+## 0.2.1
+
+### Patch Changes
+
+- adf7642: CLI `elmo init` now walks through each provider one at a time.
+  - @workspace/ui@0.2.1
+
+## 0.2.0
+
+### Patch Changes
+
+- @workspace/ui@0.2.0
