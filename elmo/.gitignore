@@ -67,6 +67,9 @@ next-env.d.ts
 elmo-brand-kit.zip
 og-default.png
 
+# ad-hoc scrape output (adhoc-scrape skill)
+scrapes/
+
 # to remove
 prompt_runs.ndjson.gz
 prompt_runs_rows.csv

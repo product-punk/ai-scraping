@@ -112,13 +112,13 @@ const LLM_CALLS = {
 		api.geminiLlmResponsesLive(body.map((b) => new client.AiOptimizationGeminiLlmResponsesLiveRequestInfo(b))),
 } as const;
 
-async function runGoogleAiMode(prompt: string): Promise<ScrapeResult> {
+async function runGoogleAiMode(prompt: string, options?: ProviderOptions): Promise<ScrapeResult> {
 	assertPromptLength(prompt);
 	const api = createDfsSerpApi();
 	const requestInfo = new client.SerpGoogleAiModeLiveAdvancedRequestInfo({
 		keyword: prompt,
-		location_code: DFS_LOCATION_CODE,
-		language_code: DFS_LANGUAGE_CODE,
+		location_code: options?.locationCode ?? DFS_LOCATION_CODE,
+		language_code: options?.languageCode ?? DFS_LANGUAGE_CODE,
 		depth: 10,
 	});
 
@@ -138,13 +138,13 @@ async function runGoogleAiMode(prompt: string): Promise<ScrapeResult> {
 	};
 }
 
-function runGoogleAiOverview(prompt: string): Promise<ScrapeResult> {
+function runGoogleAiOverview(prompt: string, options?: ProviderOptions): Promise<ScrapeResult> {
 	assertPromptLength(prompt);
 	const api = createDfsSerpApi();
 	const requestInfo = new client.SerpGoogleOrganicLiveAdvancedRequestInfo({
 		keyword: prompt,
-		location_code: DFS_LOCATION_CODE,
-		language_code: DFS_LANGUAGE_CODE,
+		location_code: options?.locationCode ?? DFS_LOCATION_CODE,
+		language_code: options?.languageCode ?? DFS_LANGUAGE_CODE,
 		depth: 10,
 		// AI Overviews are generated on demand; without this DataForSEO only
 		// returns whatever it had cached, so most runs would come back empty.
@@ -316,10 +316,10 @@ export const dataforseo: Provider = {
 	async run(model: string, prompt: string, options?: ProviderOptions): Promise<ScrapeResult> {
 		assertPromptLength(prompt);
 		if (SERP_MODELS.has(model)) {
-			return runGoogleAiMode(prompt);
+			return runGoogleAiMode(prompt, options);
 		}
 		if (model === AI_OVERVIEW_MODEL) {
-			return runGoogleAiOverview(prompt);
+			return runGoogleAiOverview(prompt, options);
 		}
 		// Prefer the scraped consumer UI. Pinning a model_name is the opt-in to the
 		// LLM Responses API, which is the only route that can honor one.

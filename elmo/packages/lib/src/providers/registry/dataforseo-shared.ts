@@ -65,12 +65,18 @@ function authFetch(url: string | URL | Request, init?: RequestInit): Promise<Res
 	});
 }
 
+// Defaults to production; set DATAFORSEO_BASE_URL=https://sandbox.dataforseo.com
+// to hit the free Sandbox (fixed dummy data, no balance consumed).
+function dfsBaseUrl() {
+	return getCredential("DATAFORSEO_BASE_URL") ?? "https://api.dataforseo.com";
+}
+
 export function createDfsSerpApi() {
-	return new client.SerpApi("https://api.dataforseo.com", { fetch: authFetch });
+	return new client.SerpApi(dfsBaseUrl(), { fetch: authFetch });
 }
 
 export function createDfsAiApi() {
-	return new client.AiOptimizationApi("https://api.dataforseo.com", { fetch: authFetch });
+	return new client.AiOptimizationApi(dfsBaseUrl(), { fetch: authFetch });
 }
 
 export function assertPromptLength(prompt: string) {
