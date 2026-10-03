@@ -92,6 +92,20 @@ const CSV_HEADER = [
 	"textContent",
 ];
 
+// Companion CSV: the sites the fan-out/web searches actually surfaced
+// (DataForSEO `search_results`), which is broader than the cited `sources`.
+const SEARCH_RESULTS_HEADER = [
+	"prompt",
+	"model",
+	"provider",
+	"location",
+	"resultIndex",
+	"domain",
+	"title",
+	"url",
+	"description",
+];
+
 function slugify(s: string): string {
 	return s
 		.toLowerCase()
@@ -121,6 +135,7 @@ function parseInputs(): Config {
 			aliases: { type: "string" },
 			model: { type: "string", default: "chatgpt" },
 			openai: { type: "boolean", default: false },
+			"openai-only": { type: "boolean", default: false },
 			"openai-model": { type: "string", default: "gpt-5-mini" },
 			location: { type: "string", multiple: true },
 			language: { type: "string", default: "en" },
@@ -163,6 +178,7 @@ function parseInputs(): Config {
 			language: values.language as string,
 			locations: values.location ?? [],
 			openai: values.openai ?? false,
+			openaiOnly: values["openai-only"] ?? false,
 			openaiModel: values["openai-model"] as string,
 		}),
 		brandId: `brand_${slugify(brandName)}`,
@@ -174,17 +190,24 @@ function parseInputs(): Config {
  * Build the provider targets. Geo only applies to the reliable Google surfaces:
  * a geo-capable model with locations yields one target per location, otherwise a
  * single target. --openai adds a direct OpenAI API target (never geo-located).
+ * --openai-only skips the DataForSEO target entirely (useful to backfill the
+ * direct-API run after a transient OpenAI failure without re-spending scrape credits).
  */
 function buildTargets(input: {
 	model: string;
 	language: string;
 	locations: string[];
 	openai: boolean;
+	openaiOnly: boolean;
 	openaiModel: string;
 }): Target[] {
 	const { model, language } = input;
 	const locationCodes = input.locations.map((l) => Number(l)).filter((n) => Number.isFinite(n));
 	const geoCapable = GEO_CAPABLE_MODELS.has(model);
+
+	if (input.openaiOnly) {
+		return [{ provider: "openai-api", model: input.openaiModel }];
+	}
 
 	const targets: Target[] = [];
 	if (geoCapable && locationCodes.length > 0) {
@@ -301,6 +324,27 @@ function csvRowsForResult(
 	]);
 }
 
+/** DataForSEO exposes the pages its web search surfaced in `search_results` — broader than cited sources. */
+function searchResultRows(promptValue: string, target: Target, result: ScrapeResult): string[][] {
+	const raw = result.rawOutput as { tasks?: { result?: { search_results?: unknown }[] }[] } | undefined;
+	const results = raw?.tasks?.[0]?.result?.[0]?.search_results;
+	if (!Array.isArray(results)) return [];
+	return results.map((s, i) => {
+		const o = (s ?? {}) as { url?: string; domain?: string; title?: string; description?: string };
+		return [
+			promptValue,
+			target.model,
+			target.provider,
+			String(target.locationCode ?? ""),
+			String(i),
+			o.domain ?? "",
+			o.title ?? "",
+			o.url ?? "",
+			o.description ?? "",
+		];
+	});
+}
+
 /** Scrape one prompt with one target, persist run + citations, return CSV rows + a summary line. */
 async function runTarget(
 	deps: Deps,
@@ -309,7 +353,7 @@ async function runTarget(
 	promptValue: string,
 	promptId: string,
 	target: Target,
-): Promise<{ rows: string[][]; summary: string; ok: boolean }> {
+): Promise<{ rows: string[][]; searchRows: string[][]; summary: string; ok: boolean }> {
 	const { db, schema, analyzeMentions } = deps;
 	const geo = target.locationCode ? `, location=${target.locationCode}` : "";
 	console.log(`\n[${target.provider}] "${promptValue}" (model=${target.model}, webSearch=${cfg.webSearch}${geo})...`);
@@ -320,7 +364,7 @@ async function runTarget(
 	} catch (err) {
 		const msg = err instanceof Error ? err.message : String(err);
 		console.error(`  FAILED: ${msg}`);
-		return { rows: [], summary: `✗ [${target.provider}] "${promptValue}" — ${msg}`, ok: false };
+		return { rows: [], searchRows: [], summary: `✗ [${target.provider}] "${promptValue}" — ${msg}`, ok: false };
 	}
 
 	const mentions = analyzeMentions(
@@ -361,9 +405,11 @@ async function runTarget(
 		);
 	}
 
+	const searchRows = searchResultRows(promptValue, target, result);
 	return {
 		rows: csvRowsForResult(cfg, promptValue, target, result, mentions),
-		summary: `✓ [${target.provider}] "${promptValue}" — run ${run.id} | brand=${mentions.brandMentioned} competitors=[${mentions.competitorsMentioned.join(", ")}] citations=${result.citations.length}`,
+		searchRows,
+		summary: `✓ [${target.provider}] "${promptValue}" — run ${run.id} | brand=${mentions.brandMentioned} competitors=[${mentions.competitorsMentioned.join(", ")}] citations=${result.citations.length} searchResults=${searchRows.length}`,
 		ok: true,
 	};
 }
@@ -381,6 +427,7 @@ async function main() {
 	const compRows = await upsertBrandContext(deps, cfg);
 
 	const csvRows: string[][] = [];
+	const searchRows: string[][] = [];
 	const summaries: string[] = [];
 	let failures = 0;
 	let total = 0;
@@ -388,19 +435,31 @@ async function main() {
 		const promptId = await upsertPrompt(deps, cfg, promptValue);
 		for (const target of cfg.targets) {
 			total++;
-			const { rows, summary, ok } = await runTarget(deps, cfg, compRows, promptValue, promptId, target);
-			csvRows.push(...rows);
-			summaries.push(summary);
-			if (!ok) failures++;
+			const result = await runTarget(deps, cfg, compRows, promptValue, promptId, target);
+			csvRows.push(...result.rows);
+			searchRows.push(...result.searchRows);
+			summaries.push(result.summary);
+			if (!result.ok) failures++;
 		}
 	}
 
 	const csvPath = cfg.csv ?? path.resolve(process.cwd(), `scrape-${slugify(cfg.brandName)}-${Date.now()}.csv`);
 	writeFileSync(csvPath, `${[CSV_HEADER, ...csvRows].map((r) => r.map(csvCell).join(",")).join("\n")}\n`);
 
+	// Companion CSV of the sites the searches surfaced (only when any were returned).
+	let searchCsvPath: string | undefined;
+	if (searchRows.length > 0) {
+		searchCsvPath = `${csvPath.replace(/\.csv$/i, "")}-search-results.csv`;
+		writeFileSync(
+			searchCsvPath,
+			`${[SEARCH_RESULTS_HEADER, ...searchRows].map((r) => r.map(csvCell).join(",")).join("\n")}\n`,
+		);
+	}
+
 	console.log(`\n===== Summary (brand ${cfg.brandId}) =====`);
 	for (const line of summaries) console.log(`  ${line}`);
 	console.log(`CSV: ${csvPath}`);
+	if (searchCsvPath) console.log(`Search results CSV: ${searchCsvPath}`);
 	if (failures > 0) {
 		console.error(`\n${failures}/${total} run(s) failed.`);
 		process.exit(1);
