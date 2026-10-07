@@ -56,19 +56,21 @@ const LLM_MODELS: Record<string, { defaultModelName: string; call: keyof typeof 
  * DataForSEO has no Perplexity scraper.
  */
 const SCRAPER_CALLS = {
-	chatgpt: (api: client.AiOptimizationApi, prompt: string) =>
+	// ChatGPT's scraper accepts a country-level location_code (see its
+	// /llm_scraper/locations list), so the geo override is honored here.
+	chatgpt: (api: client.AiOptimizationApi, prompt: string, options?: ProviderOptions) =>
 		api.chatGptLlmScraperLiveAdvanced([
 			new client.AiOptimizationChatGptLlmScraperLiveAdvancedRequestInfo({
 				keyword: prompt,
-				location_code: DFS_LOCATION_CODE,
-				language_code: DFS_LANGUAGE_CODE,
+				location_code: options?.locationCode ?? DFS_LOCATION_CODE,
+				language_code: options?.languageCode ?? DFS_LANGUAGE_CODE,
 				// ChatGPT decides per prompt whether to search; force it so a tracked
 				// run always reflects the browsing experience. Gemini always searches
 				// and has no equivalent flag.
 				force_web_search: true,
 			}),
 		]),
-	gemini: (api: client.AiOptimizationApi, prompt: string) =>
+	gemini: (api: client.AiOptimizationApi, prompt: string, _options?: ProviderOptions) =>
 		api.geminiLlmScraperLiveAdvanced([
 			new client.AiOptimizationGeminiLlmScraperLiveAdvancedRequestInfo({
 				keyword: prompt,
@@ -268,8 +270,12 @@ async function runLlmResponse(model: string, prompt: string, options?: ProviderO
 	};
 }
 
-async function runLlmScraper(model: keyof typeof SCRAPER_CALLS, prompt: string): Promise<ScrapeResult> {
-	const response = await SCRAPER_CALLS[model](createDfsAiApi(), prompt);
+async function runLlmScraper(
+	model: keyof typeof SCRAPER_CALLS,
+	prompt: string,
+	options?: ProviderOptions,
+): Promise<ScrapeResult> {
+	const response = await SCRAPER_CALLS[model](createDfsAiApi(), prompt, options);
 	const result = dfsFirstResult<{ model?: string; fan_out_queries?: unknown }>(response);
 	const raw = sanitizeForJson(response);
 	const citations = extractCitationsFromDataforseoScraper(raw);
@@ -324,7 +330,7 @@ export const dataforseo: Provider = {
 		// Prefer the scraped consumer UI. Pinning a model_name is the opt-in to the
 		// LLM Responses API, which is the only route that can honor one.
 		if (!options?.version && model in SCRAPER_CALLS) {
-			return runLlmScraper(model as keyof typeof SCRAPER_CALLS, prompt);
+			return runLlmScraper(model as keyof typeof SCRAPER_CALLS, prompt, options);
 		}
 		if (LLM_MODELS[model]) {
 			return runLlmResponse(model, prompt, options);

@@ -48,10 +48,9 @@ interface Target {
 	languageCode?: string;
 }
 
-// DataForSEO models where a location_code genuinely localizes results. The LLM
-// surfaces (chatgpt/gemini/perplexity) are intentionally excluded — DataForSEO
-// does not reliably honor geo there (see providers/registry/dataforseo.ts).
-const GEO_CAPABLE_MODELS = new Set(["google-ai-mode", "google-ai-overview"]);
+// DataForSEO models that accept a location_code: the Google SERP surfaces, plus
+// the ChatGPT LLM Scraper (country-level). Gemini/Perplexity stay US-only.
+const GEO_CAPABLE_MODELS = new Set(["google-ai-mode", "google-ai-overview", "chatgpt"]);
 
 interface Deps {
 	db: Db;
@@ -187,7 +186,7 @@ function parseInputs(): Config {
 }
 
 /**
- * Build the provider targets. Geo only applies to the reliable Google surfaces:
+ * Build the provider targets. Geo only applies to GEO_CAPABLE_MODELS:
  * a geo-capable model with locations yields one target per location, otherwise a
  * single target. --openai adds a direct OpenAI API target (never geo-located).
  * --openai-only skips the DataForSEO target entirely (useful to backfill the

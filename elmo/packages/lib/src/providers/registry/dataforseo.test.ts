@@ -131,6 +131,15 @@ describe("dataforseo provider", () => {
 			expect(result.modelVersion).toBe("gpt-5-5");
 		});
 
+		it("passes a geo override through to the ChatGPT scraper", async () => {
+			dataforseoClient.chatGptLlmScraperLiveAdvanced.mockResolvedValueOnce(scraperResponse(CHATGPT_SCRAPE));
+
+			await dataforseo.run("chatgpt", "best fde course", { webSearch: true, locationCode: 2356, languageCode: "en" });
+
+			const [payload] = dataforseoClient.chatGptLlmScraperLiveAdvanced.mock.calls[0];
+			expect(payload[0]).toMatchObject({ location_code: 2356, language_code: "en" });
+		});
+
 		it("routes to LLM Responses instead when the target pins a model_name", async () => {
 			dataforseoClient.chatgptLlmResponsesLive.mockResolvedValueOnce({
 				tasks: [

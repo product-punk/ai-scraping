@@ -20,9 +20,9 @@ export interface ProviderOptions {
 	version?: string;
 	/**
 	 * DataForSEO geo override for the SERP-based surfaces (Google AI Mode / AI
-	 * Overview), where location genuinely localizes results. Ignored by the LLM
-	 * surfaces (ChatGPT/Gemini/Perplexity), whose geo support DataForSEO does not
-	 * consistently honor, and by non-DataForSEO providers. Defaults to US/en.
+	 * Overview) and the ChatGPT LLM Scraper (country-level only). Ignored by
+	 * Gemini/Perplexity and the LLM Responses route, and by non-DataForSEO
+	 * providers. Defaults to US/en.
 	 */
 	locationCode?: number;
 	languageCode?: string;

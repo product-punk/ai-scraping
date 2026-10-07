@@ -1,6 +1,6 @@
 ---
 name: adhoc-google-ai-overview
-description: Run a new ad-hoc Google AI Overview scrape for a brand, with geo/location targeting. Collects the brand info Elmo needs (name, website, aliases, competitors), one or more prompts, and one or more locations, scrapes Google AI Overviews via DataForSEO per location, persists to the local Postgres (prompt_runs + citations), and writes a CSV. Use when the user says "adhoc google ai overview", "AI overview scrape", "google AIO", "check AI overview visibility", or wants location-specific Google AI Overview data for a brand. Unlike ChatGPT, this surface genuinely honors geo.
+description: Run a new ad-hoc Google AI Overview scrape for a brand, with geo/location targeting. Collects the brand info Elmo needs (name, website, aliases, competitors), one or more prompts, and one or more locations, scrapes Google AI Overviews via DataForSEO per location, persists to the local Postgres (prompt_runs + citations), and writes a CSV. Use when the user says "adhoc google ai overview", "AI overview scrape", "google AIO", "check AI overview visibility", or wants location-specific Google AI Overview data for a brand. Google geo can go down to city level; for country-level ChatGPT geo use adhoc-chatgpt.
 argument-hint: [brand, prompts, and locations]
 ---
 
