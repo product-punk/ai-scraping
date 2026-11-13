@@ -10,6 +10,10 @@ on:
         description: "Client slug to run (blank = all active clients)"
         required: false
         default: ""
+      dry_run:
+        description: "Dry run: list clients and estimated cost, no API spend"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -40,8 +44,10 @@ jobs:
           DATAFORSEO_PASSWORD: ${{ secrets.DATAFORSEO_PASSWORD }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           CLIENT: ${{ inputs.client }}
+          DRY_RUN: ${{ inputs.dry_run }}
           TRIGGER: ${{ github.event_name == 'schedule' && 'scheduled' || 'manual' }}
         run: |
           args="--trigger $TRIGGER"
           if [ -n "$CLIENT" ]; then args="$args --client $CLIENT"; fi
+          if [ "$DRY_RUN" = "true" ]; then args="$args --dry-run"; fi
           node weekly-tracker/scripts/run-weekly.ts $args
