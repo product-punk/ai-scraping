@@ -261,8 +261,10 @@ function entityRows(cur, prev) {
 }
 
 // ---------- UI atoms ----------
-function delta(cur, prev, { text = true } = {}) {
-	if (cur == null || prev == null) return text ? `<span class="delta flat">no previous period</span>` : `<span class="delta flat">-</span>`;
+// Without a previous period the page says so once (period line); tiles and the rank
+// list stay quiet, tables keep a "-" so their columns don't look broken.
+function delta(cur, prev, { text = true, blank = false } = {}) {
+	if (cur == null || prev == null) return text || blank ? "" : `<span class="delta flat">-</span>`;
 	const d = pct(cur) - pct(prev);
 	const cls = d === 0 ? "flat" : d > 0 ? "up" : "down";
 	return `<span class="delta ${cls}">${d > 0 ? "+" : ""}${d}${text ? " pts" : "%"}</span>`;
@@ -327,7 +329,7 @@ function filterBar(title, P) {
 				</div></div>
 		</div>
 	</div>
-	<div class="period">${esc(P.label)}${P.prevLabel ? ` · ${esc(P.prevLabel)}` : ""}${filtered ? ` · filtered to ${esc([S.intent !== "all" ? S.intent : "", S.offering !== "all" ? S.offering : ""].filter(Boolean).join(", "))}` : ""}</div>`;
+	<div class="period">${esc(P.label)}${P.prevLabel ? ` · ${esc(P.prevLabel)}` : ""}${!P.prev.length && S.range !== "all" ? " · No earlier scrape to compare yet" : ""}${filtered ? ` · filtered to ${esc([S.intent !== "all" ? S.intent : "", S.offering !== "all" ? S.offering : ""].filter(Boolean).join(", "))}` : ""}</div>`;
 }
 
 // ---------- tabs ----------
@@ -375,14 +377,14 @@ function tabOverview(P, cur, prev) {
 	<section class="sec"><h2>Visibility score</h2><p class="lead">How often your brand is named in AI-generated answers</p>
 		<div class="split">
 			<div>
-				<div class="big">${pctTxt(m.visibility)} <span class="d">${delta(m.visibility, pm?.visibility, { text: false })}</span></div>
+				<div class="big">${pctTxt(m.visibility)} <span class="d">${delta(m.visibility, pm?.visibility, { text: false, blank: true })}</span></div>
 				${P.trend.length < 2 ? trendEmpty(P) : `<div class="chartbox"><canvas id="ch-vis" role="img" aria-label="Visibility over time"></canvas></div>
 				<div class="toggles"><label><input type="checkbox" checked disabled> Current period</label>
 					<label><input type="checkbox" id="tg-prev" ${S.prevLine ? "checked" : ""}> Previous period</label>
 					<label><input type="checkbox" id="tg-comp" ${S.compareComps ? "checked" : ""}> Compare competitors</label></div>`}</div>
 			<div><h3 style="font:500 14px var(--sans);color:var(--muted);margin:0">Visibility score rank</h3>
 				<div class="big">#${myRank}</div>
-				<ol class="rank">${rows.slice(0, 8).map((r, i) => `<li><span class="n">${i + 1}</span>${favicon(r.name, r.domain, r.me)}<span class="nm">${esc(r.name)}${r.me ? '<span class="owned">Owned</span>' : ""}</span><span class="v">${pctTxt(r.v)}</span><span class="dd2">${delta(r.v, r.pv, { text: false })}</span></li>`).join("")}</ol></div>
+				<ol class="rank">${rows.slice(0, 8).map((r, i) => `<li><span class="n">${i + 1}</span>${favicon(r.name, r.domain, r.me)}<span class="nm">${esc(r.name)}${r.me ? '<span class="owned">Owned</span>' : ""}</span><span class="v">${pctTxt(r.v)}</span><span class="dd2">${delta(r.v, r.pv, { text: false, blank: true })}</span></li>`).join("")}</ol></div>
 		</div>
 	</section>
 	<section class="sec"><h2>Key metrics</h2><p class="lead">Headline figures for the selected period and filters</p>
@@ -509,7 +511,7 @@ function tabCitations(P, cur, prev) {
 		const top = [...dc.entries()].filter(([d]) => categoryOf(d) === r.c).sort((a, b) => b[1] - a[1])[0];
 		return top ? { c: r.c, d: top[0], n: top[1], total: r.n } : null;
 	}).filter(Boolean).sort((a, b) => b.total - a.total).slice(0, 8);
-	const kpiNum = (label, v, pv) => `<div class="card kpi c3"><h3>${esc(label)}</h3><div class="val">${v ?? "-"}</div>${pv == null ? '<span class="delta flat">no previous period</span>' : `<span class="delta ${v - pv > 0 ? "up" : v - pv < 0 ? "down" : "flat"}">${v - pv > 0 ? "+" : ""}${v - pv} vs previous</span>`}</div>`;
+	const kpiNum = (label, v, pv) => `<div class="card kpi c3"><h3>${esc(label)}</h3><div class="val">${v ?? "-"}</div>${pv == null ? "" : `<span class="delta ${v - pv > 0 ? "up" : v - pv < 0 ? "down" : "flat"}">${v - pv > 0 ? "+" : ""}${v - pv} vs previous</span>`}</div>`;
 	return `
 	<section class="sec"><h2>Citations</h2><p class="lead">The sources AI engines read and link to when they answer your prompts</p>
 		<div class="grid">
