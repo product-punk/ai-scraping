@@ -598,7 +598,10 @@ function tabFanout(P, cur) {
 
 function tabInsights(P) {
 	const inPeriod = (DATA.insights || []).filter((i) => P.cur.some((b) => b.id === i.batch_id));
-	if (!inPeriod.length) return `<section class="sec"><h2>Insights</h2><p class="lead">Analysis written for each weekly scrape</p><div class="card empty">No analysis has been published for this period yet.</div></section>`;
+	if (!inPeriod.length) return `<section class="sec"><h2>Insights</h2><p class="lead">Analysis written for each weekly scrape</p><div class="card insight-empty">${icon('<path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/>')}
+		<div><b>This period's analysis isn't published yet</b>
+		<p>After each weekly scrape is reviewed, this tab shows the headline for the week, key findings, priority actions, notes on competitors and the sites worth reaching out to.${(DATA.insights || []).length ? ' Earlier analyses are available under "All time".' : ""}</p>
+		<a class="btn" href="#overview">See this period's numbers on Overview</a></div></div></section>`;
 	const i = inPeriod[0], c = i.content || {};
 	return `<section class="sec"><h2>Insights</h2><p class="lead">Analysis of the scrape on ${fmtDate((DATA.batches.find((b) => b.id === i.batch_id) || {}).started_at || i.created_at)}</p>
 		<div class="card" style="margin-bottom:16px"><p class="headline">${esc(i.headline)}</p>${i.summary ? `<p class="summary" style="margin:0">${esc(i.summary)}</p>` : ""}</div>
