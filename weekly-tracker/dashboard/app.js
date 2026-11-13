@@ -25,6 +25,8 @@ const TABS = [
 	["insights", "Insights", '<path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/>'],
 ];
 const SESSION_KEY = "aeo-dash-session";
+// Respect the OS "reduce motion" setting: charts render without their entry animation.
+if (window.Chart && matchMedia("(prefers-reduced-motion: reduce)").matches) Chart.defaults.animation = false;
 
 const S = { tab: "overview", range: "latest", from: null, to: null, model: "chatgpt-scraped", intent: "all", offering: "all", prevLine: false, compareComps: true, category: null };
 let DATA = null, SESSION = null;
