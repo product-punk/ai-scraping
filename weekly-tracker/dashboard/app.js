@@ -949,7 +949,7 @@ function drawCharts(P, cur, prev) {
 		const ds2 = [
 			{ label: "Visibility", data: per((rs) => metricsOf(rs)?.visibility), borderColor: brand, backgroundColor: area(brand), fill: true, borderWidth: 3, tension: 0.35, pointRadius: 4, pointBackgroundColor: brand },
 			{ label: "Cited rate", data: per((rs) => metricsOf(rs)?.citedRate), borderColor: brand2, backgroundColor: brand2, borderWidth: 2, tension: 0.35, pointRadius: 3, pointStyle: "rectRot" },
-			{ label: "Citation share", data: per((rs) => metricsOf(rs)?.citationShare), borderColor: brand2, backgroundColor: brand2, borderDash: [6, 4], borderWidth: 2, tension: 0.35, pointRadius: 3, pointStyle: "triangle" },
+			{ label: "Citation share", data: per((rs) => metricsOf(rs)?.citationShare), borderColor: css("--amber"), backgroundColor: css("--amber"), borderDash: [6, 4], borderWidth: 2, tension: 0.35, pointRadius: 3, pointStyle: "triangle" },
 		];
 		charts.vis2 = new Chart(vis2, { type: "line", data: { labels, datasets: ds2 }, options: singlePoint(baseOpts(), ds2, labels.length), plugins: [pointLabels] });
 	}
