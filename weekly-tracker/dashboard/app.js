@@ -31,6 +31,7 @@ const TABS = [
 	["insights", "Insights", '<path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/>'],
 ];
 const SESSION_KEY = "aeo-dash-session";
+const USER_KEY = "aeo-dash-user";
 // Respect the OS "reduce motion" setting: charts render without their entry animation.
 if (window.Chart && matchMedia("(prefers-reduced-motion: reduce)").matches) Chart.defaults.animation = false;
 
@@ -301,8 +302,9 @@ function shell(inner) {
 	const initials = client.name.split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase();
 	return `<div class="shell">
 		<aside class="side">
-			<div class="who">${iconOk ? `<div class="logo"><img src="${esc(b.icon_url)}" alt="${esc(client.name)} logo"></div>` : `<div class="logo initials">${esc(initials)}</div>`}
-				<div style="min-width:0"><div class="name">${esc(client.name)}</div><div class="dom">${esc(client.domain)}</div></div></div>
+			<div class="dd who-dd"><button type="button" class="who" data-menu="account" aria-haspopup="true" title="Account and weekly updates">${iconOk ? `<div class="logo"><img src="${esc(b.icon_url)}" alt="${esc(client.name)} logo"></div>` : `<div class="logo initials">${esc(initials)}</div>`}
+				<div style="min-width:0;text-align:left"><div class="name">${esc(client.name)} <span class="wdot ${weeklyState().key}" title="Weekly updates: ${esc(weeklyState().label)}"></span></div><div class="dom">${esc(client.domain)}</div></div>${CARET}</button>
+				${accountMenu()}</div>
 			<nav class="tabs" aria-label="Sections">${TABS.map(([id, label, paths]) => `<a href="#${id}" ${S.tab === id ? 'aria-current="page"' : ""}>${icon(paths)}${label}</a>`).join("")}</nav>
 		</aside>
 		<main id="main">${inner}</main>
@@ -323,13 +325,16 @@ function weeklyState() {
 	if (!w.global) return { key: "paused", label: "On · paused", detail: "Weekly runs are paused for all accounts by your account team right now. Your choice is saved and tracking starts as soon as they resume." };
 	return { key: "on", label: "On", detail: `Next update ${fmtDate(nextMonday())}. Your prompts are re-checked every Monday and this dashboard updates automatically.` };
 }
-function weeklyControl() {
+/** Menu under the client block: who's signed in, and this client's weekly updates switch. */
+function accountMenu() {
 	const st = weeklyState();
 	const on = DATA.client.weekly?.enabled;
-	return `<div class="dd"><button type="button" class="pickbtn weekly-btn" data-menu="weekly" aria-haspopup="true"><span class="wdot ${st.key}"></span>Weekly updates: ${esc(st.label)}${CARET}</button>
-		<div class="menu weekly-menu" id="menu-weekly"><label>Weekly updates</label>
-			<div class="wbody"><p>${esc(st.detail)}</p>
-			<button type="button" class="${on ? "btn-ghost" : "btn"}" id="weekly-set" data-on="${on ? "0" : "1"}">${on ? "Turn off weekly updates" : "Turn on weekly updates"}</button></div></div></div>`;
+	const user = store.get(USER_KEY);
+	return `<div class="menu left account-menu" id="menu-account">
+		<div class="acct-head"><b>${esc(DATA.client.name)}</b><span>${esc(DATA.client.domain)}${user ? ` · signed in as ${esc(user)}` : ""}</span></div>
+		<label>Weekly updates</label>
+		<div class="wbody"><div class="wstate"><span class="wdot ${st.key}"></span>${esc(st.label)}</div><p>${esc(st.detail)}</p>
+			<button type="button" class="${on ? "btn-ghost" : "btn"}" id="weekly-set" data-on="${on ? "0" : "1"}">${on ? "Turn off weekly updates" : "Turn on weekly updates"}</button></div></div>`;
 }
 async function setWeekly(enabled) {
 	const btn = document.getElementById("weekly-set");
@@ -339,6 +344,7 @@ async function setWeekly(enabled) {
 		if (res?.error === "session") return showLogin("Your session ended. Please sign in again.");
 		DATA.client.weekly = { enabled: res.enabled, global: res.global };
 		renderApp();
+		document.getElementById("menu-account")?.classList.add("open");
 	} catch (e) {
 		if (btn) { btn.disabled = false; btn.textContent = `Couldn't save: ${e.message}`; }
 	}
@@ -351,7 +357,7 @@ function filterBar(title, P) {
 	const region = locs.length ? locs.map((l) => REGIONS[l] || `Location ${l}`).join(", ") : REGIONS[DATA.client.location_code] || "Default";
 	const filtered = S.intent !== "all" || S.offering !== "all";
 	const extraIntents = intents.filter((i) => !["commercial", "branded", "comparison"].includes(i)).map((i) => [i, i[0].toUpperCase() + i.slice(1)]);
-	return `<div class="topline"><h1>${esc(title)}</h1><div class="top-actions">${weeklyControl()}${themeButton(true)}<button class="icon-btn" id="logout" type="button" aria-label="Sign out" title="Sign out">${icon('<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>')}</button></div></div>
+	return `<div class="topline"><h1>${esc(title)}</h1><div class="top-actions">${themeButton(true)}<button class="icon-btn" id="logout" type="button" aria-label="Sign out" title="Sign out">${icon('<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>')}</button></div></div>
 	<div class="bar">
 		<div class="ranges">
 			${RANGES.map(([k, v]) => `<button type="button" data-range="${k}" class="${S.range === k ? "on" : ""}">${v}</button>`).join("")}
@@ -690,35 +696,19 @@ function tabInsights(P) {
 // Wording follows the aeo-data-analysis skill's definitions so the dashboard and the
 // weekly Excel report describe each number the same way. Client-facing: no tool names.
 const DEFINITIONS = [
-	["Visibility", "How often AI answers mention your company by name.",
-		"Answers that name you ÷ all answers. Each prompt counts once per AI source per scrape, so 17 of 25 answers is 68%."],
-	["Cited rate", "How often AI answers use a page on your website as a source.",
-		"Answers citing at least one page on your site ÷ all answers. An answer can name you without citing you, and cite you without naming you."],
-	["Share of voice", "Your share of the mentions, compared with the competitors tracked here.",
-		"Your mentions ÷ (your mentions + tracked competitors' mentions). 100% means none of the tracked competitors were named, not that no one else was."],
-	["Citation share", "How much of everything the AI cited came from your website.",
-		"Citations to your site ÷ all citations across the answers."],
-	["Citation SOV", "Your citations compared with tracked competitors' citations, ignoring every other site.",
-		"Your citations ÷ (your citations + tracked competitors' citations)."],
-	["Fan-out referral", "How often a page the AI found while searching ended up cited in its answer.",
-		"Search results that were also cited (same site or same page) ÷ all search results the AI surfaced. Live ChatGPT only."],
+	["Visibility", "How often AI answers name you (answers naming you ÷ all answers)."],
+	["Cited rate", "How often answers cite a page on your website."],
+	["Share of voice", "Your mentions vs tracked competitors'. 100% means none of them were named."],
+	["Citation share", "Your website's share of all citations."],
+	["Citation SOV", "Your citations vs tracked competitors' citations only."],
+	["Fan-out referral", "Search results the AI found and then cited (Live ChatGPT only)."],
+	["Commercial prompts", "Buying questions that don't name you. Branded ones are reported separately."],
+	["Live ChatGPT / OpenAI API", "chatgpt.com with web search from your country / the model answering directly."],
+	["Directional", "Fewer than 3 prompts: a signal, not a verdict."],
 ];
-const TERMS = [
-	["Commercial vs branded prompts", "Commercial prompts are buying questions that don't name you{{EXAMPLE}}. Branded prompts name you or compare you with someone, so you are almost always mentioned. They are reported separately so they don't inflate the headline numbers."],
-	["Live ChatGPT vs OpenAI API", "Live ChatGPT is what people see on chatgpt.com, with web search, asked from your target country. OpenAI API is the underlying model answering directly, with no location."],
-	["Directional", "An offering with fewer than 3 prompts. Treat its numbers as a signal, not a verdict."],
-];
-/** An example commercial prompt from this client's own set (never another client's). */
-function examplePrompt() {
-	const q = DATA.client.prompts.find((p) => isCommercial(p) && !isBranded(p));
-	if (!q) return "";
-	return ` ("${q.length > 60 ? `${q.slice(0, 57).trim()}…` : q}")`;
-}
 const foot = () => `<section class="foot"><h3>How these numbers work</h3>
-	<dl class="defs">${DEFINITIONS.map(([t, what, how]) => `<dt>${t}</dt><dd><p>${what}</p><p class="how"><span>How it's counted:</span> ${how}</p></dd>`).join("")}</dl>
-	<h3>Terms used</h3>
-	<dl class="defs">${TERMS.map(([t, d]) => `<dt>${t}</dt><dd><p>${esc(d.replace("{{EXAMPLE}}", examplePrompt()))}</p></dd>`).join("")}</dl>
-	<p class="caveat">AI answers vary from run to run, so a single scrape is a snapshot. Read trends across several weeks before acting on a change.</p></section>`;
+	<dl class="defs">${DEFINITIONS.map(([t, d]) => `<div><dt>${t}</dt><dd>${d}</dd></div>`).join("")}</dl>
+	<p class="caveat">Each prompt runs once per AI source per scrape. Answers vary run to run, so read trends across several weeks.</p></section>`;
 
 // ---------- sortable tables ----------
 // Every data table gets click-to-sort headers. Sorting moves the existing rows
@@ -1000,7 +990,7 @@ function showLogin(message) {
 		btn.textContent = "Signing in…";
 		try {
 			const res = await rpc("dashboard_login", { p_username: document.getElementById("user").value, p_password: document.getElementById("pw").value });
-			if (res?.session) { store.set(SESSION_KEY, res.session); return load(res.session); }
+			if (res?.session) { store.set(SESSION_KEY, res.session); store.set(USER_KEY, res.username || ""); return load(res.session); }
 			if (res?.error === "locked") {
 				const mins = Math.max(1, Math.ceil((new Date(res.until) - Date.now()) / 60000));
 				return showLogin(`Too many wrong attempts. Try again in ${mins} minute${mins > 1 ? "s" : ""}.`);
@@ -1014,6 +1004,7 @@ function showLogin(message) {
 async function logout() {
 	try { await rpc("dashboard_logout", { p_session: SESSION }); } catch {}
 	store.del(SESSION_KEY);
+	store.del(USER_KEY);
 	for (const k of Object.keys(charts)) { charts[k].destroy(); delete charts[k]; }
 	showLogin();
 }
