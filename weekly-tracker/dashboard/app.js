@@ -329,7 +329,7 @@ function filterBar(title, P) {
 				</div></div>
 		</div>
 	</div>
-	<div class="period">${esc(P.label)}${P.prevLabel ? ` · ${esc(P.prevLabel)}` : ""}${!P.prev.length && S.range !== "all" ? " · No earlier scrape to compare yet" : ""}${filtered ? ` · filtered to ${esc([S.intent !== "all" ? S.intent : "", S.offering !== "all" ? S.offering : ""].filter(Boolean).join(", "))}` : ""}</div>`;
+	<div class="period">${esc(P.label)}${P.prev.length && P.prevLabel ? ` · ${esc(P.prevLabel)}` : ""}${!P.prev.length && S.range !== "all" ? " · No earlier scrape to compare yet" : ""}${filtered ? ` · filtered to ${esc([S.intent !== "all" ? S.intent : "", S.offering !== "all" ? S.offering : ""].filter(Boolean).join(", "))}` : ""}</div>`;
 }
 
 // ---------- tabs ----------
