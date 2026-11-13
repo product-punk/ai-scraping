@@ -68,7 +68,8 @@ It ignores greys, near-white and near-black. If the colours look wrong, override
   - **Info:** dark blue background, `--brand` title
 - **Pills:** `NAMED` / `CITED` in 11px mono, highlighted in `--brand` on `--brand-soft` when true, otherwise muted.
 - **Tags:** "You" uses a `--brand` outline. Competitor names are muted. P1 is red, P2 is amber, and "Directional" (offerings with fewer than 3 prompts) is amber.
-- **Password screen:** a centred 420px card. It keeps the default accent because the client isn't known until the password is checked. It does not reveal the client's name.
+- **Sign-in screen:** a centred 420px card with username and password fields and the theme toggle. It keeps the default accent and shows no client name or logo, because the client isn't known until sign-in succeeds.
+- **Header controls:** source switch, theme toggle (sun/moon) and sign out, as 38px icon buttons.
 
 ## 5. Typography
 

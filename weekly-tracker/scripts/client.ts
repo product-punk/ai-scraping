@@ -4,15 +4,35 @@
 //   node weekly-tracker/scripts/client.ts upsert weekly-tracker/clients/acme.json
 //   node weekly-tracker/scripts/client.ts list
 //   node weekly-tracker/scripts/client.ts weekly acme on|off   # include in the Monday scrape (new clients start off)
-//   node weekly-tracker/scripts/client.ts password acme   # new random dashboard password (printed once)
+//   node weekly-tracker/scripts/client.ts user add acme acme-marketing [password]   # dashboard login for a client
+//   node weekly-tracker/scripts/client.ts user reset acme-marketing [password]      # new password, signs them out
+//   node weekly-tracker/scripts/client.ts user remove acme-marketing  |  user list [acme]
 import { readFileSync } from "node:fs";
 import { type Client, env, sb } from "./lib.ts";
 
 const [cmd, arg] = process.argv.slice(2);
 
-function dashboardUrl(token: string): string {
-	const base = process.env.DASHBOARD_URL?.replace(/\/$/, "");
-	return base ? `${base}/?c=${token}` : `<DASHBOARD_URL>/?c=${token}`;
+const DASHBOARD = process.env.DASHBOARD_URL?.replace(/\/$/, "") || "<DASHBOARD_URL>";
+
+interface DashUser { id: string; username: string; client_id: string; disabled: boolean; locked_until: string | null; last_login_at: string | null }
+
+function randomPassword(): string {
+	const alphabet = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+	// Rejection sampling keeps every character equally likely.
+	const out: string[] = [];
+	while (out.length < 16) {
+		for (const b of crypto.getRandomValues(new Uint8Array(32))) {
+			if (b < 220 && out.length < 16) out.push(alphabet[b % 55]);
+		}
+	}
+	return out.join("");
+}
+
+/** Create or reset a dashboard login; the password is printed once, only its bcrypt hash is stored. */
+async function setUser(clientSlug: string, username: string, given?: string) {
+	const password = given ?? randomPassword();
+	await sb("POST", "rpc/upsert_dashboard_user", { p_client_slug: clientSlug, p_username: username, p_password: password });
+	console.log(`Dashboard login for ${clientSlug}:\n  URL:      ${DASHBOARD}\n  Username: ${username.toLowerCase()}\n  Password: ${password}\n(Shown once; only a hash is stored. Any existing sessions for this user were signed out.)`);
 }
 
 async function upsert(file: string) {
@@ -49,29 +69,20 @@ async function upsert(file: string) {
 	if (cfg.prompt_tags) row.prompt_tags = cfg.prompt_tags;
 	const [saved] = await sb<Client[]>("POST", "clients?on_conflict=slug", row, "return=representation,resolution=merge-duplicates");
 	console.log(`Saved ${saved.name} (${saved.slug}): ${saved.prompts.length} prompts, ${saved.competitors.length} competitors, weekly scrape ${saved.active ? "ON" : "off"}`);
-	console.log(`Dashboard: ${dashboardUrl(saved.share_token)}`);
-	if (!(saved as Client & { dashboard_password_hash: string | null }).dashboard_password_hash) {
-		await setPassword(saved.slug, null);
-	}
-}
-
-/** Generate (or set) a dashboard password; only its bcrypt hash is stored. */
-async function setPassword(slug: string, given: string | null, clear = false) {
-	const alphabet = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-	const bytes = crypto.getRandomValues(new Uint8Array(14));
-	const password = clear ? null : (given ?? Array.from(bytes, (b) => alphabet[b % alphabet.length]).join(""));
-	const ok = await sb<boolean>("POST", "rpc/set_client_password", { p_slug: slug, p_password: password });
-	if (!ok) throw new Error(`No client "${slug}"`);
-	console.log(clear ? `Password removed for ${slug} — dashboard is open to anyone with the link.` : `Dashboard password for ${slug}: ${password}\n(Shown once; only a hash is stored. Share it separately from the link.)`);
+	const users = await sb<DashUser[]>("GET", `dashboard_users?select=username&client_id=eq.${saved.id}`);
+	if (users.length === 0) await setUser(saved.slug, saved.slug);
+	else console.log(`Dashboard logins: ${users.map((u) => u.username).join(", ")} (${DASHBOARD})`);
 }
 
 async function list() {
-	const clients = await sb<Client[]>("GET", "clients?select=*&order=name");
+	const clients = await sb<(Client & { dashboard_users: { username: string }[] })[]>("GET", "clients?select=*,dashboard_users(username)&order=name");
 	for (const c of clients) {
+		const logins = c.dashboard_users.map((u) => u.username).join(",") || "NONE";
 		console.log(
-			`weekly=${c.active ? "ON " : "off"} ${c.slug.padEnd(28)} ${String(c.prompts.length).padStart(3)} prompts  geo=${c.location_code}  openai=${c.include_openai}  pwd=${(c as Client & { dashboard_password_hash: string | null }).dashboard_password_hash ? "set" : "NONE"}  ${dashboardUrl(c.share_token)}`,
+			`weekly=${c.active ? "ON " : "off"} ${c.slug.padEnd(28)} ${String(c.prompts.length).padStart(3)} prompts  geo=${c.location_code}  openai=${c.include_openai}  logins=${logins}`,
 		);
 	}
+	console.log(`Dashboard: ${DASHBOARD}`);
 	if (clients.length === 0) console.log("No clients yet.");
 }
 
@@ -80,17 +91,36 @@ async function setActive(slug: string, active: boolean) {
 	console.log(rows.length ? `${slug}: weekly scrape ${active ? "ON (included on Mondays)" : "OFF (skipped on Mondays; dashboard still works)"}` : `No client "${slug}"`);
 }
 
+async function userCmd([sub, a, b, c]: string[]) {
+	if (sub === "add" && a && b) return setUser(a, b, c);
+	if (sub === "reset" && a) {
+		const [u] = await sb<(DashUser & { clients: { slug: string } })[]>("GET", `dashboard_users?select=*,clients(slug)&username=eq.${encodeURIComponent(a.toLowerCase())}`);
+		if (!u) throw new Error(`No user "${a}"`);
+		return setUser(u.clients.slug, u.username, b);
+	}
+	if (sub === "remove" && a) {
+		const rows = await sb<DashUser[]>("DELETE", `dashboard_users?username=eq.${encodeURIComponent(a.toLowerCase())}`);
+		return console.log(rows.length ? `Removed ${a} (signed out everywhere).` : `No user "${a}"`);
+	}
+	if (sub === "list") {
+		const users = await sb<(DashUser & { clients: { slug: string } })[]>("GET", `dashboard_users?select=*,clients!inner(slug)${a ? `&clients.slug=eq.${encodeURIComponent(a)}` : ""}&order=username`);
+		for (const u of users) {
+			const locked = u.locked_until && new Date(u.locked_until) > new Date() ? `  LOCKED until ${u.locked_until}` : "";
+			console.log(`${u.username.padEnd(28)} client=${u.clients.slug.padEnd(24)} last_login=${u.last_login_at ?? "never"}${u.disabled ? "  DISABLED" : ""}${locked}`);
+		}
+		return users.length ? undefined : console.log("No users.");
+	}
+	throw new Error("Usage: user add <client> <username> [pw] | user reset <username> [pw] | user remove <username> | user list [client]");
+}
+
 async function main() {
 	env("SUPABASE_URL");
 	if (cmd === "upsert" && arg) return upsert(arg);
 	if (cmd === "list") return list();
 	if ((cmd === "pause" || cmd === "resume") && arg) return setActive(arg, cmd === "resume");
 	if (cmd === "weekly" && arg && ["on", "off"].includes(process.argv[4] ?? "")) return setActive(arg, process.argv[4] === "on");
-	if (cmd === "password" && arg) {
-		const extra = process.argv[4];
-		return setPassword(arg, extra && extra !== "--clear" ? extra : null, extra === "--clear");
-	}
-	console.error("Usage: client.ts upsert <file.json> | list | weekly <slug> on|off | password <slug> [new-password|--clear]");
+	if (cmd === "user") return userCmd(process.argv.slice(3));
+	console.error("Usage: client.ts upsert <file.json> | list | weekly <slug> on|off | user add <client> <username> [pw] | user reset <username> [pw] | user remove <username> | user list [client]");
 	process.exit(1);
 }
 

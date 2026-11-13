@@ -39,7 +39,6 @@ export interface Client {
 	language_code: string;
 	include_openai: boolean;
 	active: boolean;
-	share_token: string;
 }
 
 export interface Citation {

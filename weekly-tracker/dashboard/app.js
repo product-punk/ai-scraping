@@ -10,9 +10,9 @@
 
 const SOURCES = { "chatgpt-scraped": "Live ChatGPT", "openai-api": "OpenAI API" };
 const ENGINES = { "chatgpt-scraped": "Live ChatGPT", "openai-api": "OpenAI API", all: "Combined" };
-const token = new URLSearchParams(location.search).get("c");
-const PW_KEY = `aeo-dash-pw:${token}`;
-let DATA = null, ENGINE = "chatgpt-scraped", chart = null, PASSWORD = null;
+// Session token from dashboard_login, kept for this browser tab only (12h server-side expiry).
+const SESSION_KEY = "aeo-dash-session";
+let DATA = null, ENGINE = "chatgpt-scraped", chart = null, SESSION = null;
 
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
 const pct = (x) => (x == null || Number.isNaN(x) ? null : Math.round(x * 100));
@@ -232,7 +232,7 @@ function header(batchesAll) {
 	const last = batchesAll[batchesAll.length - 1];
 	return `<header>
 		<div class="who">${logo}<div><h1>${esc(client.name)}</h1><div class="sub">${esc(client.domain)} · AI search visibility</div></div></div>
-		<div class="controls">${last ? `<span class="live"><i></i>Updated ${fmtDate(last.started_at)}</span>` : ""}${seg}${themeButton()}</div>
+		<div class="controls">${last ? `<span class="live"><i></i>Updated ${fmtDate(last.started_at)}</span>` : ""}${seg}${themeButton()}<button class="theme-btn" id="logout" type="button" aria-label="Sign out" title="Sign out"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg></button></div>
 	</header>`;
 }
 
@@ -389,6 +389,7 @@ function render() {
 
 function bindSeg() {
 	bindTheme();
+	document.getElementById("logout")?.addEventListener("click", logout);
 	document.querySelectorAll("[data-engine]").forEach((b) => b.addEventListener("click", () => { ENGINE = b.dataset.engine; render(); }));
 }
 
@@ -454,7 +455,7 @@ async function openPrompt(prompt, runs) {
 	document.getElementById("detail").showModal();
 	try {
 		const parts = await Promise.all(matches.map(async (r) => {
-			const d = await rpc("client_run_detail", { p_token: token, p_run_id: r.id, p_password: PASSWORD });
+			const d = await rpc("client_run_detail", { p_session: SESSION, p_run_id: r.id });
 			const cites = (CITES_BY_RUN.get(r.id) || []).slice().sort((a, b) => a.position - b.position);
 			return `<h3>${esc(SOURCES[r.provider] || r.provider)} <span class="sub">${esc(r.model_version || "")}</span> ${pill(r)}</h3>
 				<pre>${answerHtml(d?.text_content)}</pre>
@@ -468,34 +469,63 @@ async function openPrompt(prompt, runs) {
 	}
 }
 
-// ---------- Password gate + boot ----------
+// ---------- Login + boot ----------
 function showLogin(message) {
+	DATA = null;
+	SESSION = null;
+	document.getElementById("favicon").href = "data:,";
+	document.title = "AI Visibility";
+	for (const v of ["--brand", "--brand-2", "--brand-soft", "--on-brand"]) document.documentElement.style.removeProperty(v);
 	document.getElementById("app").innerHTML = `<div class="login card">
-		<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><h1>AI visibility dashboard</h1>${themeButton()}</div><p class="sub">Enter the password you were given for this dashboard.</p>
-		<form id="pw-form"><input id="pw" type="password" autocomplete="current-password" placeholder="Password" required aria-label="Password">
-		<button type="submit">Open dashboard</button></form>
+		<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><h1>AI visibility dashboard</h1>${themeButton()}</div>
+		<p class="sub">Sign in with the username and password you were given.</p>
+		<form id="login-form">
+			<input id="user" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="Username" required aria-label="Username">
+			<input id="pw" type="password" autocomplete="current-password" placeholder="Password" required aria-label="Password">
+			<button type="submit" id="login-btn">Sign in</button>
+		</form>
 		${message ? `<div class="alert bad" role="alert"><b>${esc(message)}</b></div>` : ""}</div>`;
-	const input = document.getElementById("pw");
 	bindTheme();
-	input.focus();
-	document.getElementById("pw-form").addEventListener("submit", (e) => {
+	document.getElementById("user").focus();
+	document.getElementById("login-form").addEventListener("submit", async (e) => {
 		e.preventDefault();
-		load(input.value);
+		const btn = document.getElementById("login-btn");
+		btn.disabled = true;
+		btn.textContent = "Signing in…";
+		try {
+			const res = await rpc("dashboard_login", { p_username: document.getElementById("user").value, p_password: document.getElementById("pw").value });
+			if (res?.session) {
+				store.set(SESSION_KEY, res.session);
+				return load(res.session);
+			}
+			if (res?.error === "locked") {
+				const mins = Math.max(1, Math.ceil((new Date(res.until) - Date.now()) / 60000));
+				return showLogin(`Too many wrong attempts. Try again in ${mins} minute${mins > 1 ? "s" : ""}.`);
+			}
+			showLogin("Username or password isn't right.");
+		} catch (err) {
+			showLogin(`Couldn't sign in. ${err.message}`);
+		}
 	});
 }
 
-async function load(password) {
+async function logout() {
+	try { await rpc("dashboard_logout", { p_session: SESSION }); } catch {}
+	store.del(SESSION_KEY);
+	if (chart) { chart.destroy(); chart = null; }
+	showLogin();
+}
+
+async function load(session) {
 	const app = document.getElementById("app");
+	if (!session) return showLogin();
 	try {
-		const data = await rpc("client_dashboard", { p_token: token, p_password: password || null });
-		if (!data) { app.innerHTML = `<div class="card err">This link isn't recognised.</div>`; return; }
-		if (data.error === "password") {
-			store.del(PW_KEY);
-			showLogin(password ? "That password isn't right." : null);
-			return;
+		const data = await rpc("client_dashboard", { p_session: session });
+		if (!data || data.error === "session") {
+			store.del(SESSION_KEY);
+			return showLogin(data ? "Your session ended. Please sign in again." : null);
 		}
-		PASSWORD = password || null;
-		if (PASSWORD) store.set(PW_KEY, PASSWORD);
+		SESSION = session;
 		DATA = data;
 		indexData();
 		applyTheme(DATA.client.branding);
@@ -509,5 +539,6 @@ async function load(password) {
 	}
 }
 
-if (!token) document.getElementById("app").innerHTML = `<div class="card err">This dashboard needs a client link (…/?c=…).</div>`;
-else load(store.get(PW_KEY));
+// Old per-client links (?c=…) no longer apply; tidy the URL and sign in normally.
+if (new URLSearchParams(location.search).has("c")) history.replaceState(null, "", location.pathname);
+load(store.get(SESSION_KEY));

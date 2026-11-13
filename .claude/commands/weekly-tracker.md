@@ -1,15 +1,15 @@
 ---
-description: Weekly AI-visibility tracker — add/update a client, run a scrape now, list clients, pause/resume, or get a dashboard link (Supabase + Netlify; separate from the ad-hoc skills)
-argument-hint: [add <client details> | run [slug] | insights <slug> | list | pause <slug> | resume <slug> | link <slug>]
+description: Weekly AI-visibility tracker: add/update a client, manage dashboard logins, run a scrape now, schedule switches, insights (Supabase + Netlify; separate from the ad-hoc skills)
+argument-hint: [add <client details> | user add|reset|remove|list | run [slug] | insights <slug> | schedule status|on|off | weekly <slug> on|off | import | list]
 ---
 
 Manage the **weekly tracker** in `weekly-tracker/` (repo root). It is deliberately separate from the ad-hoc skills (`/adhoc-chatgpt`, `/adhoc-google-ai-overview`): never edit or call `elmo/packages/lib/scripts/run-scrape.ts` from here, and never write tracker data to the local Elmo Postgres.
 
-How it works: client setups (name, domain, prompts, competitors, country) live in the Supabase `clients` table. A GitHub Actions workflow (`.github/workflows/weekly-ai-visibility.yml`) runs every Monday 06:00 UTC, scrapes each active client's prompts (ChatGPT via DataForSEO + optionally the OpenAI API), and stores one timestamped **batch** per client in Supabase. Each client's Netlify dashboard (`<DASHBOARD_URL>/?c=<share_token>`) reads Supabase live, so it shows the new week as soon as the batch lands.
+How it works: client setups (name, domain, prompts, competitors, country) live in the Supabase `clients` table. A GitHub Actions workflow (`.github/workflows/weekly-ai-visibility.yml`) runs every Monday 06:00 UTC, scrapes each active client's prompts (ChatGPT via DataForSEO + optionally the OpenAI API), and stores one timestamped **batch** per client in Supabase. There is ONE dashboard URL (`DASHBOARD_URL`, currently https://ai-visibility-cfc153.netlify.app). Each user signs in with a username + password and sees only their own client's data (enforced in Supabase). The dashboard reads Supabase live, so a new batch shows up straight away.
 
 All commands run from the repo root with Node 24, no install needed. Credentials come from `weekly-tracker/.env` (see `.env.example`). If `.env` is missing or a key is empty, say which one and stop.
 
-The repo is **public**: client JSON files under `weekly-tracker/clients/` are gitignored on purpose. Never commit them, never print service keys, and never paste a client's share token anywhere except back to the user.
+The repo is **public**: client JSON files under `weekly-tracker/clients/` are gitignored on purpose. Never commit them, never print service keys, and only show a dashboard password back to the user (it's printed once at creation/reset).
 
 User input: $ARGUMENTS
 
@@ -19,7 +19,7 @@ User input: $ARGUMENTS
    - Country → DataForSEO `location_code`: US 2840, UK 2826, Canada 2124, Australia 2036, India 2356, Germany 2276, France 2250, Spain 2724. ChatGPT geo is country-level only.
    - If the user says to detect competitors from citations: run a one-off `node weekly-tracker/scripts/run-weekly.ts --client <slug>` after saving without competitors, then read the cited/search-result domains for that batch from Supabase, propose the insurers/vendors (exclude media, government, directories), and save again with them.
 2. Write `weekly-tracker/clients/<slug>.json` (shape: `weekly-tracker/clients/example.json`). Slug = lowercase-hyphenated brand name. For competitor `aliases`, only add names specific enough not to match ordinary words (e.g. "Progressive Insurance", not "Progressive").
-3. Save it: `node weekly-tracker/scripts/client.ts upsert weekly-tracker/clients/<slug>.json`. A new client gets a dashboard password automatically; it's printed once (only a bcrypt hash is stored). Give the user the link and the password, and tell them to send them to the client separately.
+3. Save it: `node weekly-tracker/scripts/client.ts upsert weekly-tracker/clients/<slug>.json`. A new client automatically gets a dashboard login (username = slug, random 16-char password, printed once; only a bcrypt hash is stored). Give the user the URL, username and password, and suggest sending the password separately. Its weekly switch starts **off**.
 4. Brand the dashboard: `node weekly-tracker/scripts/brand.ts --client <slug> --dry-run`, then without `--dry-run`. It scrapes the site's icon (stored in Supabase Storage) and colours (stored in `profile.branding`). Download the icon URL it reports and look at it, and tell the user the hex codes picked. If the icon is wrong or the colours look off (or the site blocks scraping), re-run with `--icon <url>` and/or `--primary "#hex" --accent "#hex"`.
 5. Tell the user the weekly cost: prompts × (~$0.004 ChatGPT + ~$0.01 OpenAI if enabled) per Monday.
 
@@ -57,12 +57,18 @@ Both are **off** until the user says otherwise. Manual `run --client <slug>` scr
 
 `node weekly-tracker/scripts/import-adhoc.ts --client <slug> --csv elmo/scrapes/<file>.csv --date YYYY-MM-DD [--dry-run]` reads the ad-hoc CSV and its `-search-results.csv` (read-only) and creates one batch on that date, recomputing named and cited with the tracker's rules. Check the run date with the user (file dates can mislead). Don't import the same file twice: it would count as a second week.
 
-## list / pause / resume / link
+## users: dashboard logins (one URL, each user sees only their client)
+
+- `user add <client-slug> <username> [password]`: another login for a client (e.g. `scaler-marketing`). Usernames are lowercase, 3-64 chars, `a-z 0-9 . _ -`. Omitting the password generates one, printed once.
+- `user reset <username> [password]`: new password, and signs that user out everywhere.
+- `user remove <username>`: deletes the login and its sessions. Confirm with the user first.
+- `user list [client-slug]`: logins with last sign-in and lock state.
+- Run each as `node weekly-tracker/scripts/client.ts user …`. 5 wrong passwords lock a username for 15 minutes (it clears by itself; `user reset` also clears it). Sessions last 12 hours.
+
+## list / weekly
 
 - `node weekly-tracker/scripts/client.ts list` — all clients, active state, dashboard links.
 - `node weekly-tracker/scripts/client.ts weekly <slug> on|off` (also `pause`/`resume`): switched-off clients are skipped on Mondays; history and dashboard are kept.
-- `link`: run `list` and give back just that client's dashboard URL.
-- `password <slug>`: `node weekly-tracker/scripts/client.ts password <slug>` issues a new random password (the old one stops working immediately). `password <slug> <new>` sets a specific one (10+ characters); `--clear` removes it, which leaves the dashboard open to anyone with the link, so confirm with the user first.
 
 ## Schema changes
 
