@@ -42,10 +42,25 @@ Run after Monday's batch lands (check with `gh run list --workflow weekly-ai-vis
 4. Save: `node weekly-tracker/scripts/save-insights.ts --client <slug> --file <insights.json>` (add `--draft` if the user wants to review before it shows on the dashboard; re-run without `--draft` to publish).
 5. Report the headline, the top actions, and the workbook path.
 
+## schedule: the Monday auto-scrape, with two switches (to control API cost)
+
+1. **Global**: GitHub repo variable `WEEKLY_SCRAPE_ENABLED`. Unless it's `true`, Monday does nothing.
+2. **Per client**: `clients.active`. A Monday run scrapes only clients switched on. **New clients start off.** Re-running `client.ts upsert` doesn't change the switch.
+
+Both are **off** until the user says otherwise. Manual `run --client <slug>` scrapes a named client regardless of either switch.
+
+- `schedule status`: show `gh variable get WEEKLY_SCRAPE_ENABLED --repo product-punk/ai-scraping`, `gh workflow list --repo product-punk/ai-scraping` (confirms the workflow exists on GitHub), `node weekly-tracker/scripts/client.ts list` (per-client `weekly=ON/off`), and `node weekly-tracker/scripts/run-weekly.ts --dry-run` (what next Monday would cost).
+- `schedule on` / `schedule off`: `gh variable set WEEKLY_SCRAPE_ENABLED --body true|false --repo product-punk/ai-scraping`. Only turn it on when the user explicitly asks, and show the dry-run cost first.
+- `weekly <slug> on|off`: `node weekly-tracker/scripts/client.ts weekly <slug> on|off`. Use this when a client starts or ends. Show the new Monday dry-run cost after switching one on.
+
+## import: load an existing ad-hoc scrape as a dated batch
+
+`node weekly-tracker/scripts/import-adhoc.ts --client <slug> --csv elmo/scrapes/<file>.csv --date YYYY-MM-DD [--dry-run]` reads the ad-hoc CSV and its `-search-results.csv` (read-only) and creates one batch on that date, recomputing named and cited with the tracker's rules. Check the run date with the user (file dates can mislead). Don't import the same file twice: it would count as a second week.
+
 ## list / pause / resume / link
 
 - `node weekly-tracker/scripts/client.ts list` — all clients, active state, dashboard links.
-- `node weekly-tracker/scripts/client.ts pause <slug>` / `resume <slug>` — paused clients are skipped on Mondays; history is kept.
+- `node weekly-tracker/scripts/client.ts weekly <slug> on|off` (also `pause`/`resume`): switched-off clients are skipped on Mondays; history and dashboard are kept.
 - `link`: run `list` and give back just that client's dashboard URL.
 - `password <slug>`: `node weekly-tracker/scripts/client.ts password <slug>` issues a new random password (the old one stops working immediately). `password <slug> <new>` sets a specific one (10+ characters); `--clear` removes it, which leaves the dashboard open to anyone with the link, so confirm with the user first.
 

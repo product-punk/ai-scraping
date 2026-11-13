@@ -137,16 +137,19 @@ function iconCandidates(html: string, base: string): { url: string; score: numbe
 		if (/\.ico(\?|$)/i.test(url)) score -= 80;
 		out.push({ url, score });
 	}
+	// Header <img> logos are usually wide wordmarks that shrink to nothing in the
+	// square tile, so they're a last resort behind any real square icon.
 	for (const tag of html.match(/<img[^>]+>/gi) ?? []) {
 		const blob = `${attr(tag, "src") ?? ""} ${attr(tag, "alt") ?? ""} ${attr(tag, "class") ?? ""}`;
 		const src = attr(tag, "src");
 		if (src && /logo/i.test(blob) && !src.startsWith("data:")) {
 			const url = abs(src);
-			if (url) out.push({ url, score: 120 });
+			if (url) out.push({ url, score: 20 });
 		}
 	}
+	// The conventional square touch icon, even when no <link> advertises it.
 	const fallback = abs("/apple-touch-icon.png");
-	if (fallback) out.push({ url: fallback, score: 50 });
+	if (fallback) out.push({ url: fallback, score: 260 });
 	const ico = abs("/favicon.ico");
 	if (ico) out.push({ url: ico, score: 10 });
 	return out.sort((a, b) => b.score - a.score);

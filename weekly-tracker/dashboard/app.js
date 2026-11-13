@@ -26,7 +26,7 @@ const store = {
 };
 
 // ---------- Domains (skill: last two labels, special-case 2-level TLDs; strip utm) ----------
-const TWO_LEVEL = new Set(["co.uk", "gov.uk", "ac.uk", "org.uk", "com.au", "net.au", "org.au", "com.sg", "co.in", "co.nz", "com.br"]);
+const TWO_LEVEL = new Set(["co.uk", "gov.uk", "ac.uk", "org.uk", "com.au", "net.au", "org.au", "com.sg", "co.in", "ac.in", "edu.in", "gov.in", "org.in", "net.in", "res.in", "nic.in", "co.nz", "com.br", "co.jp", "ac.jp"]);
 function baseDomain(d) {
 	const parts = String(d || "").toLowerCase().replace(/^www\./, "").split(".").filter(Boolean);
 	if (parts.length <= 2) return parts.join(".");
@@ -52,21 +52,52 @@ function lum([r, g, b]) {
 }
 const contrast = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
 function readableOn(rgb, bg, min = 4.5) {
+	// Lighten on dark surfaces, darken on light ones, until the colour reads as text.
+	const target = lum(bg) < 0.5 ? 255 : 0;
 	let c = rgb.slice();
-	for (let i = 0; i < 20 && contrast(c, bg) < min; i++) c = c.map((v) => v + (255 - v) * 0.12);
+	for (let i = 0; i < 24 && contrast(c, bg) < min; i++) c = c.map((v) => v + (target - v) * 0.12);
 	return c.map(Math.round);
 }
+const currentTheme = () => (document.documentElement.dataset.theme === "light" ? "light" : "dark");
 function applyTheme(branding) {
-	const card = [30, 30, 30];
+	const card = currentTheme() === "light" ? [255, 255, 255] : [30, 30, 30];
+	const root = document.documentElement.style;
 	const p = hexToRgb(branding?.primary);
-	if (!p) return;
+	if (!p) {
+		for (const v of ["--brand", "--brand-2", "--brand-soft", "--on-brand"]) root.removeProperty(v);
+		return;
+	}
 	const brand = readableOn(p, card);
 	const second = hexToRgb(branding?.accent);
-	const brand2 = second ? readableOn(second, card) : brand.map((v) => Math.round(v * 0.7 + 255 * 0.3));
-	const root = document.documentElement.style;
+	const brand2 = second ? readableOn(second, card) : brand.map((v) => Math.round(v * 0.7 + (card[0] > 128 ? 0 : 255) * 0.3));
 	root.setProperty("--brand", `rgb(${brand.join(",")})`);
 	root.setProperty("--brand-2", `rgb(${brand2.join(",")})`);
-	root.setProperty("--brand-soft", `rgba(${brand.join(",")},0.14)`);
+	root.setProperty("--brand-soft", `rgba(${brand.join(",")},${card[0] > 128 ? 0.1 : 0.14})`);
+	root.setProperty("--on-brand", contrast(brand, [255, 255, 255]) >= contrast(brand, [11, 11, 11]) ? "#ffffff" : "#0b0b0b");
+}
+const SUN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
+const MOON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>';
+const themeButton = () => {
+	const next = currentTheme() === "dark" ? "light" : "dark";
+	return `<button class="theme-btn" id="theme-toggle" type="button" aria-label="Switch to ${next} mode" title="Switch to ${next} mode">${next === "light" ? SUN : MOON}</button>`;
+};
+function toggleTheme() {
+	const next = currentTheme() === "dark" ? "light" : "dark";
+	document.documentElement.dataset.theme = next;
+	try { localStorage.setItem("aeo-dash-theme", next); } catch {}
+	applyTheme(DATA?.client?.branding);
+	if (DATA) {
+		render(); // re-binds the new header button itself
+		return;
+	}
+	// Login screen: swap just the button so a half-typed password survives.
+	const holder = document.createElement("span");
+	holder.innerHTML = themeButton();
+	document.getElementById("theme-toggle")?.replaceWith(holder.firstChild);
+	bindTheme();
+}
+function bindTheme() {
+	document.getElementById("theme-toggle")?.addEventListener("click", toggleTheme);
 }
 
 async function rpc(fn, body) {
@@ -201,7 +232,7 @@ function header(batchesAll) {
 	const last = batchesAll[batchesAll.length - 1];
 	return `<header>
 		<div class="who">${logo}<div><h1>${esc(client.name)}</h1><div class="sub">${esc(client.domain)} · AI search visibility</div></div></div>
-		<div class="controls">${last ? `<span class="live"><i></i>Updated ${fmtDate(last.started_at)}</span>` : ""}${seg}</div>
+		<div class="controls">${last ? `<span class="live"><i></i>Updated ${fmtDate(last.started_at)}</span>` : ""}${seg}${themeButton()}</div>
 	</header>`;
 }
 
@@ -277,7 +308,8 @@ function render() {
 
 	const insight = (DATA.insights || []).find((i) => i.batch_id === latest.id);
 	const alerts = computeAlerts(cur, old);
-	const prompts = [...new Set(cur.map((r) => r.prompt))];
+	const order = new Map(client.prompts.map((q, i) => [q, i]));
+	const prompts = [...new Set(cur.map((r) => r.prompt))].sort((a, b) => (order.get(a) ?? 999) - (order.get(b) ?? 999));
 	const engines = ENGINE === "all" ? ["chatgpt-scraped", "openai-api"] : [ENGINE];
 	const actions = insight?.content?.actions || [];
 	const outreach = insight?.content?.outreach || [];
@@ -356,6 +388,7 @@ function render() {
 }
 
 function bindSeg() {
+	bindTheme();
 	document.querySelectorAll("[data-engine]").forEach((b) => b.addEventListener("click", () => { ENGINE = b.dataset.engine; render(); }));
 }
 
@@ -373,7 +406,7 @@ function drawTrend(batches, topComps) {
 		g.addColorStop(1, rgba(brand, 0));
 		return g;
 	};
-	const greys = ["#8e8e93", "#636366"];
+	const greys = [css("--comp-1"), css("--comp-2")];
 	chart = new Chart(document.getElementById("trend"), {
 		type: "line",
 		data: { labels, datasets: [
@@ -391,7 +424,7 @@ function drawTrend(batches, topComps) {
 			},
 			plugins: {
 				legend: { position: "bottom", labels: { color: muted, boxWidth: 12, boxHeight: 2, padding: 16 } },
-				tooltip: { backgroundColor: "#2c2c2e", borderColor: grid, borderWidth: 1, callbacks: { label: (c) => `${c.dataset.label}: ${c.parsed.y}%` } },
+				tooltip: { backgroundColor: css("--card"), titleColor: css("--ink"), bodyColor: css("--ink"), borderColor: grid, borderWidth: 1, callbacks: { label: (c) => `${c.dataset.label}: ${c.parsed.y}%` } },
 			},
 		},
 	});
@@ -438,11 +471,12 @@ async function openPrompt(prompt, runs) {
 // ---------- Password gate + boot ----------
 function showLogin(message) {
 	document.getElementById("app").innerHTML = `<div class="login card">
-		<h1>AI visibility dashboard</h1><p class="sub">Enter the password you were given for this dashboard.</p>
+		<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><h1>AI visibility dashboard</h1>${themeButton()}</div><p class="sub">Enter the password you were given for this dashboard.</p>
 		<form id="pw-form"><input id="pw" type="password" autocomplete="current-password" placeholder="Password" required aria-label="Password">
 		<button type="submit">Open dashboard</button></form>
 		${message ? `<div class="alert bad" role="alert"><b>${esc(message)}</b></div>` : ""}</div>`;
 	const input = document.getElementById("pw");
+	bindTheme();
 	input.focus();
 	document.getElementById("pw-form").addEventListener("submit", (e) => {
 		e.preventDefault();

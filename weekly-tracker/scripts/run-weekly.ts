@@ -105,8 +105,12 @@ async function runClient(client: Client, trigger: string): Promise<number> {
 }
 
 async function main() {
-	let query = "clients?select=*&active=eq.true&order=name";
-	if (values.client?.length) query += `&slug=in.(${values.client.map(encodeURIComponent).join(",")})`;
+	// No --client: the Monday set (clients switched on). Named clients run regardless
+	// of their weekly switch, so a one-off manual scrape works for anyone.
+	let query = "clients?select=*&order=name";
+	query += values.client?.length
+		? `&slug=in.(${values.client.map(encodeURIComponent).join(",")})`
+		: "&active=eq.true";
 	const clients = await sb<Client[]>("GET", query);
 	if (clients.length === 0) {
 		console.log("No matching active clients.");

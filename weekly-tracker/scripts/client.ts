@@ -3,7 +3,7 @@
 //
 //   node weekly-tracker/scripts/client.ts upsert weekly-tracker/clients/acme.json
 //   node weekly-tracker/scripts/client.ts list
-//   node weekly-tracker/scripts/client.ts pause acme      |  resume acme
+//   node weekly-tracker/scripts/client.ts weekly acme on|off   # include in the Monday scrape (new clients start off)
 //   node weekly-tracker/scripts/client.ts password acme   # new random dashboard password (printed once)
 import { readFileSync } from "node:fs";
 import { type Client, env, sb } from "./lib.ts";
@@ -33,9 +33,10 @@ async function upsert(file: string) {
 		location_code: cfg.location_code ?? 2840,
 		language_code: cfg.language_code ?? "en",
 		include_openai: cfg.include_openai ?? true,
-		active: cfg.active ?? true,
 		updated_at: new Date().toISOString(),
 	};
+	// Weekly on/off is managed with `client.ts weekly <slug> on|off`; only set it here when the file says so.
+	if (typeof cfg.active === "boolean") row.active = cfg.active;
 	// Analysis context for aeo-data-analysis; omitted keys keep what's already stored.
 	// Merge so scraped branding (written by brand.ts) survives a re-upsert.
 	if (cfg.profile) {
@@ -47,7 +48,7 @@ async function upsert(file: string) {
 	}
 	if (cfg.prompt_tags) row.prompt_tags = cfg.prompt_tags;
 	const [saved] = await sb<Client[]>("POST", "clients?on_conflict=slug", row, "return=representation,resolution=merge-duplicates");
-	console.log(`Saved ${saved.name} (${saved.slug}): ${saved.prompts.length} prompts, ${saved.competitors.length} competitors`);
+	console.log(`Saved ${saved.name} (${saved.slug}): ${saved.prompts.length} prompts, ${saved.competitors.length} competitors, weekly scrape ${saved.active ? "ON" : "off"}`);
 	console.log(`Dashboard: ${dashboardUrl(saved.share_token)}`);
 	if (!(saved as Client & { dashboard_password_hash: string | null }).dashboard_password_hash) {
 		await setPassword(saved.slug, null);
@@ -68,7 +69,7 @@ async function list() {
 	const clients = await sb<Client[]>("GET", "clients?select=*&order=name");
 	for (const c of clients) {
 		console.log(
-			`${c.active ? "●" : "○"} ${c.slug.padEnd(28)} ${String(c.prompts.length).padStart(3)} prompts  geo=${c.location_code}  openai=${c.include_openai}  pwd=${(c as Client & { dashboard_password_hash: string | null }).dashboard_password_hash ? "set" : "NONE"}  ${dashboardUrl(c.share_token)}`,
+			`weekly=${c.active ? "ON " : "off"} ${c.slug.padEnd(28)} ${String(c.prompts.length).padStart(3)} prompts  geo=${c.location_code}  openai=${c.include_openai}  pwd=${(c as Client & { dashboard_password_hash: string | null }).dashboard_password_hash ? "set" : "NONE"}  ${dashboardUrl(c.share_token)}`,
 		);
 	}
 	if (clients.length === 0) console.log("No clients yet.");
@@ -76,7 +77,7 @@ async function list() {
 
 async function setActive(slug: string, active: boolean) {
 	const rows = await sb<Client[]>("PATCH", `clients?slug=eq.${encodeURIComponent(slug)}`, { active });
-	console.log(rows.length ? `${slug} ${active ? "resumed" : "paused"}` : `No client "${slug}"`);
+	console.log(rows.length ? `${slug}: weekly scrape ${active ? "ON (included on Mondays)" : "OFF (skipped on Mondays; dashboard still works)"}` : `No client "${slug}"`);
 }
 
 async function main() {
@@ -84,11 +85,12 @@ async function main() {
 	if (cmd === "upsert" && arg) return upsert(arg);
 	if (cmd === "list") return list();
 	if ((cmd === "pause" || cmd === "resume") && arg) return setActive(arg, cmd === "resume");
+	if (cmd === "weekly" && arg && ["on", "off"].includes(process.argv[4] ?? "")) return setActive(arg, process.argv[4] === "on");
 	if (cmd === "password" && arg) {
 		const extra = process.argv[4];
 		return setPassword(arg, extra && extra !== "--clear" ? extra : null, extra === "--clear");
 	}
-	console.error("Usage: client.ts upsert <file.json> | list | pause <slug> | resume <slug> | password <slug> [new-password|--clear]");
+	console.error("Usage: client.ts upsert <file.json> | list | weekly <slug> on|off | password <slug> [new-password|--clear]");
 	process.exit(1);
 }
 

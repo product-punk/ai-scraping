@@ -4,7 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<meta name="color-scheme" content="dark">
+<meta name="color-scheme" content="dark light">
+<script>try{var t=localStorage.getItem("aeo-dash-theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t;}catch(e){}</script>
 <title>AI Visibility</title>
 <link rel="icon" id="favicon" href="data:,">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -20,8 +21,16 @@
 	--ink: #ffffff; --muted: #98989d;
 	--brand: #00e5ff; --brand-2: #30d158; --brand-soft: rgba(0, 229, 255, 0.12);
 	--good: #32d74b; --good-bg: #15301c; --bad: #ff453a; --bad-bg: #3a1c1c; --info-bg: #1c2733;
+	--ink-2: #d6d6da; --on-brand: #0b0b0b; --amber: #ff9f0a; --comp-1: #8e8e93; --comp-2: #636366;
 	--mono: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
 	--sans: Inter, system-ui, -apple-system, sans-serif;
+}
+/* Light mode: same layout and client accent, light surfaces (toggle in the header). */
+:root[data-theme="light"] {
+	--bg: #f4f5f7; --card: #ffffff; --line: #e3e5e9; --hover: #f2f3f5;
+	--ink: #16181d; --muted: #5e6470; --ink-2: #2b2f36;
+	--good: #1a7f37; --good-bg: #e7f5ec; --bad: #c62828; --bad-bg: #fdecec; --info-bg: #eaf1fb;
+	--amber: #b25e00; --comp-1: #8a8f98; --comp-2: #b4b8bf;
 }
 * { box-sizing: border-box; }
 html, body { background: var(--bg); }
@@ -34,7 +43,7 @@ header { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify
 .who { display: flex; gap: 16px; align-items: center; min-width: 0; }
 .logo { width: 56px; height: 56px; border-radius: 16px; background: #fff; display: grid; place-items: center; overflow: hidden; flex: none; border: 1px solid var(--line); }
 .logo img { width: 100%; height: 100%; object-fit: contain; }
-.logo.initials { background: var(--brand); color: #0b0b0b; font: 700 20px var(--sans); }
+.logo.initials { background: var(--brand); color: var(--on-brand); font: 700 20px var(--sans); }
 h1 { font: 600 24px/1.2 var(--sans); margin: 0; letter-spacing: -0.01em; }
 .sub { color: var(--muted); font-size: 13px; }
 .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
@@ -43,7 +52,10 @@ h1 { font: 600 24px/1.2 var(--sans); margin: 0; letter-spacing: -0.01em; }
 .seg { display: inline-flex; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 4px; gap: 4px; }
 .seg button { border: 0; background: transparent; color: var(--muted); font: 500 13px var(--sans); padding: 6px 12px; border-radius: 8px; cursor: pointer; }
 .seg button.on { background: var(--brand-soft); color: var(--brand); }
-.seg button:focus-visible, tr.prompt:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.theme-btn { display: inline-grid; place-items: center; width: 38px; height: 38px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer; }
+.theme-btn:hover { background: var(--hover); }
+.theme-btn svg { width: 18px; height: 18px; }
+.theme-btn:focus-visible, .seg button:focus-visible, tr.prompt:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 
 /* 12-column grid */
 .grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; }
@@ -56,8 +68,8 @@ h1 { font: 600 24px/1.2 var(--sans); margin: 0; letter-spacing: -0.01em; }
 .login form { display: flex; flex-direction: column; gap: 8px; }
 .login input { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; color: var(--ink); font: 15px var(--sans); padding: 12px; }
 .login input:focus { outline: 2px solid var(--brand); outline-offset: 1px; }
-.login button { background: var(--brand); color: #0b0b0b; border: 0; border-radius: 8px; font: 600 15px var(--sans); padding: 12px; cursor: pointer; }
-.tag.dir { border-color: #ff9f0a; color: #ff9f0a; }
+.login button { background: var(--brand); color: var(--on-brand); border: 0; border-radius: 8px; font: 600 15px var(--sans); padding: 12px; cursor: pointer; }
+.tag.dir { border-color: var(--amber); color: var(--amber); }
 
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 20px; min-width: 0; }
 .card h2 { font: 600 15px var(--sans); margin: 0 0 16px; display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
@@ -98,7 +110,7 @@ tr.me td { background: var(--brand-soft); }
 tr.me td:first-child { box-shadow: inset 3px 0 0 var(--brand); }
 .tag { display: inline-block; font-size: 11px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); margin-left: 8px; white-space: nowrap; }
 .tag.me { border-color: var(--brand); color: var(--brand); }
-.tag.p1 { border-color: var(--bad); color: var(--bad); } .tag.p2 { border-color: #ff9f0a; color: #ff9f0a; }
+.tag.p1 { border-color: var(--bad); color: var(--bad); } .tag.p2 { border-color: var(--amber); color: var(--amber); }
 tr.prompt { cursor: pointer; }
 .pill { display: inline-flex; gap: 4px; }
 .pill span { font: 600 11px var(--mono); padding: 2px 6px; border-radius: 4px; background: var(--line); color: var(--muted); }
@@ -119,7 +131,7 @@ dialog { border: 1px solid var(--line); border-radius: 16px; background: var(--c
 dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
 dialog .head { position: sticky; top: 0; background: var(--card); padding: 16px 20px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 16px; }
 dialog .body { padding: 20px; }
-dialog pre { white-space: pre-wrap; word-wrap: break-word; font: 13px/1.7 var(--sans); margin: 0 0 16px; color: #d6d6da; }
+dialog pre { white-space: pre-wrap; word-wrap: break-word; font: 13px/1.7 var(--sans); margin: 0 0 16px; color: var(--ink-2); }
 dialog h3 { font: 600 14px var(--sans); margin: 16px 0 8px; }
 dialog button.x { border: 1px solid var(--line); background: transparent; color: var(--ink); border-radius: 8px; padding: 4px 12px; cursor: pointer; font: inherit; }
 dialog hr { border: 0; border-top: 1px solid var(--line); margin: 24px 0; }
