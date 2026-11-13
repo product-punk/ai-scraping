@@ -541,7 +541,8 @@ let CAT_CTX = null;
 
 function catListsHtml() {
 	const { cites, dc, pdc, prev, allCats } = CAT_CTX;
-	const shown = [...dc.entries()].filter(([d]) => !S.category || categoryOf(d) === S.category).sort((a, b) => b[1] - a[1]).slice(0, 25);
+	const ranked = [...dc.entries()].filter(([d]) => !S.category || categoryOf(d) === S.category).sort((a, b) => b[1] - a[1]);
+	const shown = S.allDomains ? ranked : ranked.slice(0, 15);
 	const maxN = shown[0]?.[1] || 1;
 	const urlCount = cites.filter((c) => !S.category || categoryOf(c.domain) === S.category).reduce((acc, c) => { const e = acc.get(c.url) || { url: c.url, title: c.title, domain: c.domain, n: 0 }; e.n++; acc.set(c.url, e); return acc; }, new Map());
 	const topUrls = [...urlCount.values()].sort((a, b) => b.n - a.n).slice(0, 12);
@@ -550,7 +551,7 @@ function catListsHtml() {
 			<div class="card c7"><div class="scroll"><table>
 				<thead><tr><th>Domain</th><th>Category</th><th class="num">Citations</th><th class="num">Previous</th></tr></thead><tbody>
 				${shown.map(([d, n]) => `<tr class="${d === CLIENT_DOMAIN ? "me" : ""}"><td>${esc(d)}</td><td>${muted(esc(categoryOf(d)))}</td><td class="num"><span class="minibar"><span style="width:${(n / maxN) * 100}%;background:${categoryColor(categoryOf(d), allCats)}"></span></span>${n}</td><td class="num">${prev.length ? pdc.get(d) || 0 : "-"}</td></tr>`).join("") || `<tr><td colspan="4">${muted("No citations.")}</td></tr>`}
-			</tbody></table></div></div>
+			</tbody></table></div>${ranked.length > 15 ? `<button type="button" class="linkbtn" id="toggle-domains">${S.allDomains ? "Show top 15 only" : `Show all ${ranked.length} domains`}</button>` : ""}</div>
 			<div class="card c5"><h3>Most-cited pages</h3><div class="scroll"><table><tbody>
 				${topUrls.map((u) => `<tr><td><a href="${esc(u.url)}" target="_blank" rel="noopener noreferrer">${esc(u.title || u.url.replace(/^https?:\/\//, "").slice(0, 70))}</a><div style="color:var(--muted);font-size:12px">${esc(baseDomain(u.domain))}</div></td><td class="num">${u.n}</td></tr>`).join("")}
 			</tbody></table></div></div>
@@ -635,6 +636,19 @@ function tabCitations(P, cur, prev) {
 	<section class="sec" id="cat-lists">${catListsHtml()}</section>`;
 }
 
+/** Re-render only the domain/page lists under the categories (selection, show-all). */
+function refreshLists() {
+	const lists = document.getElementById("cat-lists");
+	if (!lists) return;
+	lists.innerHTML = catListsHtml();
+	bindLists(lists);
+}
+function bindLists(root) {
+	root.querySelector("#clear-cat")?.addEventListener("click", () => selectCategory(null));
+	root.querySelector("#toggle-domains")?.addEventListener("click", () => { S.allDomains = !S.allDomains; refreshLists(); });
+	makeSortable(root);
+}
+
 /** Category selection updates in place: highlight the slice, sync rows, refresh only the lists. */
 function selectCategory(cat) {
 	S.category = cat && S.category !== cat ? cat : null;
@@ -648,9 +662,7 @@ function selectCategory(cat) {
 	}
 	const lists = document.getElementById("cat-lists");
 	if (lists) {
-		lists.innerHTML = catListsHtml();
-		document.getElementById("clear-cat")?.addEventListener("click", () => selectCategory(null));
-		makeSortable(lists);
+		refreshLists();
 	}
 	highlightDonut();
 }
@@ -843,6 +855,7 @@ function bind(P) {
 	document.getElementById("tg-comp")?.addEventListener("change", (e) => { S.compareComps = e.target.checked; renderApp(); });
 	bindCatRows();
 	document.getElementById("clear-cat")?.addEventListener("click", () => selectCategory(null));
+	document.getElementById("toggle-domains")?.addEventListener("click", () => { S.allDomains = !S.allDomains; refreshLists(); });
 	$("tr.prompt").forEach((tr) => {
 		const open = () => openPrompt(tr.dataset.prompt, runsOf(P.cur));
 		tr.addEventListener("click", open);
