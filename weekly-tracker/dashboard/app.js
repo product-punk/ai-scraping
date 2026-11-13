@@ -353,6 +353,15 @@ function computeAlerts(cur, prev) {
 	return out.length ? out : [{ kind: "info", title: "No major changes", text: "Every prompt held its result versus the previous period." }];
 }
 
+/** A one-point line chart reads as broken; say when the trend will exist instead. */
+function trendEmpty(P) {
+	const last = P.trend[P.trend.length - 1] || P.cur[P.cur.length - 1];
+	const next = last ? fmtDate(new Date(last.started_at).getTime() + 7 * DAY) : null;
+	return `<div class="trend-empty">${icon('<path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-6"/>')}
+		<div><b>${P.trend.length ? "Only one scrape in this view so far" : "No scrapes in this view"}</b>
+		<p>The trend line appears once there are two or more scrapes${next && P.trend.length ? `, from the next weekly run (around ${esc(next)})` : ""}. Try "All time" to include every scrape.</p></div></div>`;
+}
+
 function tabOverview(P, cur, prev) {
 	const m = metricsOf(cur), pm = metricsOf(prev);
 	const com = (rs) => rs.filter((r) => isCommercial(r.prompt));
@@ -367,10 +376,10 @@ function tabOverview(P, cur, prev) {
 		<div class="split">
 			<div><h3 style="font:500 14px var(--sans);color:var(--muted);margin:0">Visibility score</h3>
 				<div class="big">${pctTxt(m.visibility)} <span class="d">${delta(m.visibility, pm?.visibility, { text: false })}</span></div>
-				<div class="chartbox"><canvas id="ch-vis" role="img" aria-label="Visibility over time"></canvas></div>
+				${P.trend.length < 2 ? trendEmpty(P) : `<div class="chartbox"><canvas id="ch-vis" role="img" aria-label="Visibility over time"></canvas></div>
 				<div class="toggles"><label><input type="checkbox" checked disabled> Current period</label>
 					<label><input type="checkbox" id="tg-prev" ${S.prevLine ? "checked" : ""}> Previous period</label>
-					<label><input type="checkbox" id="tg-comp" ${S.compareComps ? "checked" : ""}> Compare competitors</label></div></div>
+					<label><input type="checkbox" id="tg-comp" ${S.compareComps ? "checked" : ""}> Compare competitors</label></div>`}</div>
 			<div><h3 style="font:500 14px var(--sans);color:var(--muted);margin:0">Visibility score rank</h3>
 				<div class="big">#${myRank}</div>
 				<ol class="rank">${rows.slice(0, 8).map((r, i) => `<li><span class="n">${i + 1}</span>${favicon(r.name, r.domain, r.me)}<span class="nm">${esc(r.name)}${r.me ? '<span class="owned">Owned</span>' : ""}</span><span class="v">${pctTxt(r.v)}</span><span class="dd2">${delta(r.v, r.pv, { text: false })}</span></li>`).join("")}</ol></div>
@@ -437,7 +446,7 @@ function tabVisibility(P, cur, prev) {
 		</tbody></table></div>${br ? `<div class="note">Branded and comparison prompts (${br.n} answers) are kept out of commercial figures. Their visibility: ${pctTxt(br.visibility)}.</div>` : ""}</div>
 	</section>
 	<section class="sec"><h2>Visibility over time</h2><p class="lead">Visibility, cited rate and citation share per scrape</p>
-		<div class="card"><div class="chartbox"><canvas id="ch-vis2" role="img" aria-label="Visibility metrics over time"></canvas></div></div></section>
+		<div class="card">${P.trend.length < 2 ? trendEmpty(P) : `<div class="chartbox"><canvas id="ch-vis2" role="img" aria-label="Visibility metrics over time"></canvas></div>`}</div></section>
 	<section class="sec"><h2>You vs competitors</h2><p class="lead">Named, cited and share of mentions for tracked competitors</p>
 		<div class="card"><div class="scroll"><table>
 			<thead><tr><th>Company</th><th class="num">Named</th><th class="num">Change</th><th class="num">Cited</th><th class="num">Share of voice</th></tr></thead><tbody>
