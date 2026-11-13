@@ -490,6 +490,31 @@ function catListsHtml() {
 		</div>`;
 }
 
+/** Under the donut: each category's top site, or, with a category selected, that category's top sites. */
+function catSideHtml() {
+	const { dc, allCats, leaders = [] } = CAT_CTX;
+	if (!S.category) {
+		return `<h3 style="margin-top:20px">Top site per category</h3>
+			<table class="tight"><tbody>${leaders.map((r) => `<tr class="click cat" tabindex="0" data-cat="${esc(r.c)}"><td><span class="swatch" style="background:${categoryColor(r.c, allCats)}"></span>${esc(r.d)}<div class="sub2">${esc(r.c)}</div></td><td class="num">${r.n}</td></tr>`).join("")}</tbody></table>`;
+	}
+	const color = categoryColor(S.category, allCats);
+	const sites = [...dc.entries()].filter(([d]) => categoryOf(d) === S.category).sort((a, b) => b[1] - a[1]);
+	const total = sites.reduce((a, [, n]) => a + n, 0) || 1;
+	return `<h3 style="margin-top:20px;align-items:center">Top sites in ${esc(S.category)} <button type="button" class="linkbtn" id="side-clear">← All categories</button></h3>
+		<table class="tight"><tbody>${sites.slice(0, 10).map(([d, n]) => `<tr class="${d === CLIENT_DOMAIN ? "me" : ""}"><td><span class="swatch" style="background:${color}"></span>${esc(d)}<div class="sub2"><span class="minibar" style="width:96px"><span style="width:${(n / total) * 100}%;background:${color}"></span></span>${pctTxt(n / total)} of this category</div></td><td class="num">${n}</td></tr>`).join("")}</tbody></table>
+		${sites.length > 10 ? `<div class="note">+ ${sites.length - 10} more in the domain list below.</div>` : ""}`;
+}
+
+/** Clicking a row in a category list (table or side panel) selects that category. */
+function bindCatRows(root = document) {
+	root.querySelectorAll("tr.cat").forEach((tr) => {
+		const go = () => selectCategory(tr.dataset.cat);
+		tr.addEventListener("click", go);
+		tr.addEventListener("keydown", (e) => { if (e.key === "Enter") go(); });
+	});
+	root.querySelector("#side-clear")?.addEventListener("click", () => selectCategory(null));
+}
+
 function donutCenterHtml() {
 	const { cites, cats } = CAT_CTX;
 	if (!S.category) return `<div class="n">${cites.length}</div><div class="l">citations</div>`;
@@ -517,6 +542,7 @@ function tabCitations(P, cur, prev) {
 		const top = [...dc.entries()].filter(([d]) => categoryOf(d) === r.c).sort((a, b) => b[1] - a[1])[0];
 		return top ? { c: r.c, d: top[0], n: top[1], total: r.n } : null;
 	}).filter(Boolean).sort((a, b) => b.total - a.total).slice(0, 8);
+	CAT_CTX.leaders = leaders;
 	const kpiNum = (label, v, pv) => `<div class="card kpi c3"><h3>${esc(label)}</h3><div class="val">${v ?? "-"}</div>${pv == null ? "" : `<span class="delta ${v - pv > 0 ? "up" : v - pv < 0 ? "down" : "flat"}">${v - pv > 0 ? "+" : ""}${v - pv} vs previous</span>`}</div>`;
 	return `
 	<section class="sec"><h2>Citations</h2><p class="lead">The sources AI engines read and link to when they answer your prompts</p>
@@ -530,8 +556,7 @@ function tabCitations(P, cur, prev) {
 		<div class="grid">
 			<div class="card c5 catcard"><div class="chartbox short"><canvas id="ch-cat" role="img" aria-label="Citations by category"></canvas>
 				<div class="donut-center" id="donut-center">${donutCenterHtml()}</div></div>
-				<h3 style="margin-top:20px">Top site per category</h3>
-				<table class="tight"><tbody>${leaders.map((r) => `<tr class="click cat ${S.category === r.c ? "sel" : ""}" tabindex="0" data-cat="${esc(r.c)}"><td><span class="swatch" style="background:${categoryColor(r.c, allCats)}"></span>${esc(r.d)}<div class="sub2">${esc(r.c)}</div></td><td class="num">${r.n}</td></tr>`).join("")}</tbody></table></div>
+				<div id="cat-side">${catSideHtml()}</div></div>
 			<div class="card c7"><div class="scroll"><table>
 				<thead><tr><th>Category</th><th class="num">Citations</th><th class="num">Share</th><th class="num">Change</th><th class="num">Domains</th></tr></thead><tbody>
 				${catRows.map((r) => `<tr class="click cat ${S.category === r.c ? "sel" : ""}" tabindex="0" data-cat="${esc(r.c)}"><td><span class="swatch" style="background:${categoryColor(r.c, allCats)}"></span>${esc(r.c)}</td><td class="num">${r.n}</td><td class="num">${pctTxt(r.share)}</td><td class="num">${delta(r.share, r.pshare, { text: false })}</td><td class="num">${r.domains}</td></tr>`).join("")}
@@ -546,6 +571,11 @@ function selectCategory(cat) {
 	document.querySelectorAll("tr.cat").forEach((tr) => tr.classList.toggle("sel", tr.dataset.cat === S.category));
 	const center = document.getElementById("donut-center");
 	if (center) center.innerHTML = donutCenterHtml();
+	const side = document.getElementById("cat-side");
+	if (side) {
+		side.innerHTML = catSideHtml();
+		bindCatRows(side);
+	}
 	const lists = document.getElementById("cat-lists");
 	if (lists) {
 		lists.innerHTML = catListsHtml();
@@ -735,11 +765,7 @@ function bind(P) {
 	});
 	document.getElementById("tg-prev")?.addEventListener("change", (e) => { S.prevLine = e.target.checked; renderApp(); });
 	document.getElementById("tg-comp")?.addEventListener("change", (e) => { S.compareComps = e.target.checked; renderApp(); });
-	$("tr.cat").forEach((tr) => {
-		const go = () => selectCategory(tr.dataset.cat);
-		tr.addEventListener("click", go);
-		tr.addEventListener("keydown", (e) => { if (e.key === "Enter") go(); });
-	});
+	bindCatRows();
 	document.getElementById("clear-cat")?.addEventListener("click", () => selectCategory(null));
 	$("tr.prompt").forEach((tr) => {
 		const open = () => openPrompt(tr.dataset.prompt, runsOf(P.cur));
