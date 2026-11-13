@@ -599,7 +599,9 @@ function tabCitations(P, cur, prev) {
 	if (S.category && !cats.has(S.category)) S.category = null;
 	const catRows = allCats.map((c) => ({ c, n: cats.get(c) || 0, share: cites.length ? (cats.get(c) || 0) / cites.length : 0,
 		pshare: pcites.length ? (pcats.get(c) || 0) / pcites.length : null, domains: new Set(cites.filter((x) => categoryOf(x.domain) === c).map((x) => baseDomain(x.domain))).size }))
-		.filter((r) => r.n || r.pshare);
+		.filter((r) => r.n || r.pshare)
+		// Biggest first; categories that dropped to zero sink to the bottom (shown muted).
+		.sort((a, b) => b.n - a.n);
 	const domCount = (list) => list.reduce((acc, c) => acc.set(baseDomain(c.domain), (acc.get(baseDomain(c.domain)) || 0) + 1), new Map());
 	const dc = domCount(cites), pdc = domCount(pcites);
 	CAT_CTX = { cites, cats, dc, pdc, prev, allCats };
@@ -626,7 +628,7 @@ function tabCitations(P, cur, prev) {
 				<div id="cat-side">${catSideHtml()}</div></div>
 			<div class="card c7"><div class="scroll"><table>
 				<thead><tr><th>Category</th><th class="num">Citations</th><th class="num">Share</th><th class="num">Change</th><th class="num">Domains</th></tr></thead><tbody>
-				${catRows.map((r) => `<tr class="click cat ${S.category === r.c ? "sel" : ""}" tabindex="0" data-cat="${esc(r.c)}"><td><span class="swatch" style="background:${categoryColor(r.c, allCats)}"></span>${esc(r.c)}</td><td class="num">${r.n}</td><td class="num">${pctTxt(r.share)}</td><td class="num">${delta(r.share, r.pshare, { text: false })}</td><td class="num">${r.domains}</td></tr>`).join("")}
+				${catRows.map((r) => `<tr class="click cat ${S.category === r.c ? "sel" : ""}${r.n ? "" : " zero"}" tabindex="0" data-cat="${esc(r.c)}" ${r.n ? "" : 'title="No citations in this period"'}><td><span class="swatch" style="background:${categoryColor(r.c, allCats)}"></span>${esc(r.c)}</td><td class="num">${r.n}</td><td class="num">${pctTxt(r.share)}</td><td class="num">${delta(r.share, r.pshare, { text: false })}</td><td class="num">${r.domains}</td></tr>`).join("")}
 			</tbody></table></div>${unclassified ? `<div class="note">${unclassified.domains} domain${unclassified.domains === 1 ? " is" : "s are"} not categorised yet. Categories for this client are set during the weekly analysis.</div>` : ""}</div>
 		</div></section>
 	<section class="sec" id="cat-lists">${catListsHtml()}</section>`;
