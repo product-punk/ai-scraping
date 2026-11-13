@@ -70,7 +70,11 @@ main { min-width: 0; padding: 32px 40px 64px; max-width: 1360px; }
 	.who { padding: 0; flex: 1; }
 	.side-foot { margin: 0; padding: 0; }
 	nav.tabs { order: 3; flex-direction: row; width: 100%; overflow-x: auto; gap: 4px; scrollbar-width: none; }
-	nav.tabs a { white-space: nowrap; padding: 8px 12px; font-size: 14px; }
+	nav.tabs a { white-space: nowrap; padding: 8px 12px; font-size: 14px; min-height: 44px; }
+	/* Fade the right edge so a clipped tab reads as "scroll for more". */
+	nav.tabs { -webkit-mask-image: linear-gradient(to right, #000 85%, transparent); mask-image: linear-gradient(to right, #000 85%, transparent); padding-right: 32px; }
+	.ranges button, .pickbtn { min-height: 44px; }
+	.icon-btn { width: 44px; height: 44px; }
 	main { padding: 24px 16px 48px; }
 }
 
