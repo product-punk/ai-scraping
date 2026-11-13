@@ -410,6 +410,18 @@ function trendNote(P) {
 	return `<div class="note">${P.trend.length ? "First scrape on record. Each new scrape adds a point to this line." : "No scrapes in this view yet."}</div>`;
 }
 
+/** Week-over-week changes: counts first, then one compact line per change (losses first). */
+function changesHtml(alerts) {
+	const moves = alerts.filter((a) => a.kind !== "info");
+	if (!moves.length) return `<div class="alerts">${alerts.map((a) => `<div class="alert ${a.kind}"><b>${esc(a.title)}</b>${esc(a.text)}</div>`).join("")}</div>`;
+	const counts = moves.reduce((m, a) => m.set(a.title, { n: (m.get(a.title)?.n || 0) + 1, kind: a.kind }), new Map());
+	const sorted = [...moves].sort((a, b) => (a.kind === b.kind ? 0 : a.kind === "bad" ? -1 : 1));
+	const row = (a) => `<li class="${a.kind}"><span class="cdot"></span><div><b>${esc(a.title)}</b><span>${esc(a.text)}</span></div></li>`;
+	return `<div class="ch-summary">${[...counts].map(([t, { n, kind }]) => `<span class="chg ${kind}">${n} ${esc(t.toLowerCase())}</span>`).join("")}</div>
+		<ul class="ch-list">${sorted.slice(0, 5).map(row).join("")}</ul>
+		${sorted.length > 5 ? `<details class="ch-more"><summary>Show all ${sorted.length} changes</summary><ul class="ch-list">${sorted.slice(5).map(row).join("")}</ul></details>` : ""}`;
+}
+
 function tabOverview(P, cur, prev) {
 	const m = metricsOf(cur), pm = metricsOf(prev);
 	const com = (rs) => rs.filter((r) => isCommercial(r.prompt));
@@ -445,7 +457,7 @@ function tabOverview(P, cur, prev) {
 	<section class="sec"><h2>What changed</h2><p class="lead">${esc(P.prevLabel ? `Compared ${P.prevLabel.replace(/^vs /, "with ")}` : "Compared with the previous period")}</p>
 		<div class="grid top">
 			<div class="card c7">${insight ? `<p class="headline">${esc(insight.headline)}</p>${insight.summary ? `<p class="summary">${esc(insight.summary)}</p>` : ""}` : ""}
-				<div class="alerts">${alerts.slice(0, 8).map((a) => `<div class="alert ${a.kind}"><b>${esc(a.title)}</b>${esc(a.text)}</div>`).join("")}</div></div>
+				${changesHtml(alerts)}</div>
 			<div class="card c5"><h3>Share of voice · all prompts <small>mentions vs tracked competitors</small></h3>
 				<table><tbody>${rows.map((r) => `<tr class="${r.me ? "me" : ""}"><td>${esc(r.name)}</td><td class="num"><span class="minibar"><span style="width:${(r.mentions / totalMentions) * 100}%"></span></span>${pctTxt(r.mentions / totalMentions)}</td></tr>`).join("")}</tbody></table></div>
 		</div>

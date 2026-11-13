@@ -188,6 +188,19 @@ table.tight td { padding: 8px 6px; }
 .alert.bad { background: var(--bad-bg); border-color: var(--bad); } .alert.bad b { color: var(--bad); }
 .alert.good { background: var(--good-bg); border-color: var(--good); } .alert.good b { color: var(--good); }
 .alert.info { background: var(--info-bg); border-color: var(--brand); } .alert.info b { color: var(--brand); }
+.ch-summary { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 12px; }
+.ch-list { list-style: none; margin: 0; padding: 0; }
+.ch-list li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+.ch-list li:first-child { border-top: 0; }
+.ch-list b { display: block; font-size: 13px; }
+.ch-list li.bad b { color: var(--bad); } .ch-list li.good b { color: var(--good); }
+.ch-list span { color: var(--muted); font-size: 13px; }
+.cdot { width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; flex: none; background: var(--muted); }
+li.bad .cdot { background: var(--bad); } li.good .cdot { background: var(--good); }
+.ch-more summary { cursor: pointer; color: var(--brand); font-weight: 500; padding: 8px 0; list-style: none; }
+.ch-more summary::-webkit-details-marker { display: none; }
+.ch-more[open] summary { display: none; }
+.ch-more .ch-list li:first-child { border-top: 1px solid var(--line); }
 .headline { font-size: 16px; font-weight: 600; margin: 0 0 8px; }
 .summary { color: var(--muted); margin: 0 0 16px; }
 
