@@ -374,7 +374,7 @@ function tabOverview(P, cur, prev) {
 	return `
 	<section class="sec"><h2>Visibility score</h2><p class="lead">How often your brand is named in AI-generated answers</p>
 		<div class="split">
-			<div><h3 style="font:500 14px var(--sans);color:var(--muted);margin:0">Visibility score</h3>
+			<div>
 				<div class="big">${pctTxt(m.visibility)} <span class="d">${delta(m.visibility, pm?.visibility, { text: false })}</span></div>
 				${P.trend.length < 2 ? trendEmpty(P) : `<div class="chartbox"><canvas id="ch-vis" role="img" aria-label="Visibility over time"></canvas></div>
 				<div class="toggles"><label><input type="checkbox" checked disabled> Current period</label>
@@ -626,6 +626,8 @@ function renderApp() {
 	else if (S.tab === "fanout") body = tabFanout(P, cur);
 	else if (S.tab === "insights") body = tabInsights(P);
 	else body = tabOverview(P, cur, prev);
+	// A first section titled like the page itself ("Citations" under "Citations") only stutters.
+	body = body.replace(`<section class="sec"><h2>${title}</h2>`, '<section class="sec">');
 	document.getElementById("app").innerHTML = shell(filterBar(title, P) + body + FOOT);
 	bind(P);
 	if (cur.length) drawCharts(P, cur, prev);
