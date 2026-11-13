@@ -452,6 +452,34 @@ function tabVisibility(P, cur, prev) {
 		</tbody></table></div></div></section>`;
 }
 
+// Citations-tab state kept between in-place category selections (no full re-render).
+let CAT_CTX = null;
+
+function catListsHtml() {
+	const { cites, dc, pdc, prev, allCats } = CAT_CTX;
+	const shown = [...dc.entries()].filter(([d]) => !S.category || categoryOf(d) === S.category).sort((a, b) => b[1] - a[1]).slice(0, 25);
+	const maxN = shown[0]?.[1] || 1;
+	const urlCount = cites.filter((c) => !S.category || categoryOf(c.domain) === S.category).reduce((acc, c) => { const e = acc.get(c.url) || { url: c.url, title: c.title, domain: c.domain, n: 0 }; e.n++; acc.set(c.url, e); return acc; }, new Map());
+	const topUrls = [...urlCount.values()].sort((a, b) => b.n - a.n).slice(0, 12);
+	return `<h2>Top cited domains${S.category ? ` · ${esc(S.category)} <button type="button" class="tag" id="clear-cat" style="cursor:pointer;background:none">clear ✕</button>` : ""}</h2><p class="lead">Ranked by citations in the selected period</p>
+		<div class="grid">
+			<div class="card c7"><div class="scroll"><table>
+				<thead><tr><th>Domain</th><th>Category</th><th class="num">Citations</th><th class="num">Previous</th></tr></thead><tbody>
+				${shown.map(([d, n]) => `<tr class="${d === CLIENT_DOMAIN ? "me" : ""}"><td>${esc(d)}</td><td>${muted(esc(categoryOf(d)))}</td><td class="num"><span class="minibar"><span style="width:${(n / maxN) * 100}%;background:${categoryColor(categoryOf(d), allCats)}"></span></span>${n}</td><td class="num">${prev.length ? pdc.get(d) || 0 : "-"}</td></tr>`).join("") || `<tr><td colspan="4">${muted("No citations.")}</td></tr>`}
+			</tbody></table></div></div>
+			<div class="card c5"><h3>Most-cited pages</h3><div class="scroll"><table><tbody>
+				${topUrls.map((u) => `<tr><td><a href="${esc(u.url)}" target="_blank" rel="noopener noreferrer">${esc(u.title || u.url.replace(/^https?:\/\//, "").slice(0, 70))}</a><div style="color:var(--muted);font-size:12px">${esc(baseDomain(u.domain))}</div></td><td class="num">${u.n}</td></tr>`).join("")}
+			</tbody></table></div></div>
+		</div>`;
+}
+
+function donutCenterHtml() {
+	const { cites, cats } = CAT_CTX;
+	if (!S.category) return `<div class="n">${cites.length}</div><div class="l">citations</div>`;
+	const n = cats.get(S.category) || 0;
+	return `<div class="n">${n}</div><div class="l">${esc(S.category)}<br>${pctTxt(cites.length ? n / cites.length : 0)} of citations</div>`;
+}
+
 function tabCitations(P, cur, prev) {
 	const m = metricsOf(cur), pm = metricsOf(prev);
 	const cites = cur.flatMap((r) => CITES_BY_RUN.get(r.id) || []);
@@ -459,15 +487,13 @@ function tabCitations(P, cur, prev) {
 	const byCat = (list) => list.reduce((acc, c) => { const k = categoryOf(c.domain); acc.set(k, (acc.get(k) || 0) + 1); return acc; }, new Map());
 	const cats = byCat(cites), pcats = byCat(pcites);
 	const allCats = sortCategories([...new Set([...cats.keys(), ...pcats.keys()])]);
+	if (S.category && !cats.has(S.category)) S.category = null;
 	const catRows = allCats.map((c) => ({ c, n: cats.get(c) || 0, share: cites.length ? (cats.get(c) || 0) / cites.length : 0,
 		pshare: pcites.length ? (pcats.get(c) || 0) / pcites.length : null, domains: new Set(cites.filter((x) => categoryOf(x.domain) === c).map((x) => baseDomain(x.domain))).size }))
 		.filter((r) => r.n || r.pshare);
 	const domCount = (list) => list.reduce((acc, c) => acc.set(baseDomain(c.domain), (acc.get(baseDomain(c.domain)) || 0) + 1), new Map());
 	const dc = domCount(cites), pdc = domCount(pcites);
-	const shown = [...dc.entries()].filter(([d]) => !S.category || categoryOf(d) === S.category).sort((a, b) => b[1] - a[1]).slice(0, 25);
-	const maxN = shown[0]?.[1] || 1;
-	const urlCount = cites.filter((c) => !S.category || categoryOf(c.domain) === S.category).reduce((acc, c) => { const e = acc.get(c.url) || { url: c.url, title: c.title, domain: c.domain, n: 0 }; e.n++; acc.set(c.url, e); return acc; }, new Map());
-	const topUrls = [...urlCount.values()].sort((a, b) => b.n - a.n).slice(0, 12);
+	CAT_CTX = { cites, cats, dc, pdc, prev, allCats };
 	const unclassified = catRows.find((r) => r.c === "Unclassified");
 	// Most-cited domain in each category (skip the client's own site), biggest categories first.
 	const leaders = catRows.filter((r) => r.n && r.c !== "Your site" && r.c !== "Unclassified").map((r) => {
@@ -483,10 +509,10 @@ function tabCitations(P, cur, prev) {
 			${kpi("Brand citation share", m.citationShare, pm?.citationShare)}
 			${kpi("Citation share of voice", m.citationSov, pm?.citationSov, "Your citations vs tracked competitors'")}
 		</div></section>
-	<section class="sec"><h2>Citation categories</h2><p class="lead">What kind of site gets cited. Click a category to filter the lists below.</p>
+	<section class="sec"><h2>Citation categories</h2><p class="lead">What kind of site gets cited. Click a category to highlight it and filter the lists below.</p>
 		<div class="grid">
 			<div class="card c5 catcard"><div class="chartbox short"><canvas id="ch-cat" role="img" aria-label="Citations by category"></canvas>
-				<div class="donut-center"><div class="n">${cites.length}</div><div class="l">citations</div></div></div>
+				<div class="donut-center" id="donut-center">${donutCenterHtml()}</div></div>
 				<h3 style="margin-top:20px">Top site per category</h3>
 				<table class="tight"><tbody>${leaders.map((r) => `<tr class="click cat ${S.category === r.c ? "sel" : ""}" tabindex="0" data-cat="${esc(r.c)}"><td><span class="swatch" style="background:${categoryColor(r.c, allCats)}"></span>${esc(r.d)}<div class="sub2">${esc(r.c)}</div></td><td class="num">${r.n}</td></tr>`).join("")}</tbody></table></div>
 			<div class="card c7"><div class="scroll"><table>
@@ -494,16 +520,40 @@ function tabCitations(P, cur, prev) {
 				${catRows.map((r) => `<tr class="click cat ${S.category === r.c ? "sel" : ""}" tabindex="0" data-cat="${esc(r.c)}"><td><span class="swatch" style="background:${categoryColor(r.c, allCats)}"></span>${esc(r.c)}</td><td class="num">${r.n}</td><td class="num">${pctTxt(r.share)}</td><td class="num">${delta(r.share, r.pshare, { text: false })}</td><td class="num">${r.domains}</td></tr>`).join("")}
 			</tbody></table></div>${unclassified ? `<div class="note">${unclassified.domains} domain${unclassified.domains === 1 ? " is" : "s are"} not categorised yet. Categories for this client are set during the weekly analysis.</div>` : ""}</div>
 		</div></section>
-	<section class="sec"><h2>Top cited domains${S.category ? ` · ${esc(S.category)} <button type="button" class="tag" id="clear-cat" style="cursor:pointer;background:none">clear ✕</button>` : ""}</h2><p class="lead">Ranked by citations in the selected period</p>
-		<div class="grid">
-			<div class="card c7"><div class="scroll"><table>
-				<thead><tr><th>Domain</th><th>Category</th><th class="num">Citations</th><th class="num">Previous</th></tr></thead><tbody>
-				${shown.map(([d, n]) => `<tr class="${d === CLIENT_DOMAIN ? "me" : ""}"><td>${esc(d)}</td><td>${muted(esc(categoryOf(d)))}</td><td class="num"><span class="minibar"><span style="width:${(n / maxN) * 100}%;background:${categoryColor(categoryOf(d), allCats)}"></span></span>${n}</td><td class="num">${prev.length ? pdc.get(d) || 0 : "-"}</td></tr>`).join("") || `<tr><td colspan="4">${muted("No citations.")}</td></tr>`}
-			</tbody></table></div></div>
-			<div class="card c5"><h3>Most-cited pages</h3><div class="scroll"><table><tbody>
-				${topUrls.map((u) => `<tr><td><a href="${esc(u.url)}" target="_blank" rel="noopener noreferrer">${esc(u.title || u.url.replace(/^https?:\/\//, "").slice(0, 70))}</a><div style="color:var(--muted);font-size:12px">${esc(baseDomain(u.domain))}</div></td><td class="num">${u.n}</td></tr>`).join("")}
-			</tbody></table></div></div>
-		</div></section>`;
+	<section class="sec" id="cat-lists">${catListsHtml()}</section>`;
+}
+
+/** Category selection updates in place: highlight the slice, sync rows, refresh only the lists. */
+function selectCategory(cat) {
+	S.category = cat && S.category !== cat ? cat : null;
+	document.querySelectorAll("tr.cat").forEach((tr) => tr.classList.toggle("sel", tr.dataset.cat === S.category));
+	const center = document.getElementById("donut-center");
+	if (center) center.innerHTML = donutCenterHtml();
+	const lists = document.getElementById("cat-lists");
+	if (lists) {
+		lists.innerHTML = catListsHtml();
+		document.getElementById("clear-cat")?.addEventListener("click", () => selectCategory(null));
+	}
+	highlightDonut();
+}
+
+function withAlpha(color, a) {
+	const c = String(color).trim();
+	if (c.startsWith("#") && c.length === 7) return `rgba(${parseInt(c.slice(1, 3), 16)},${parseInt(c.slice(3, 5), 16)},${parseInt(c.slice(5, 7), 16)},${a})`;
+	if (c.startsWith("rgb(")) return c.replace("rgb(", "rgba(").replace(")", `,${a})`);
+	if (c.startsWith("hsl(")) return c.replace(")", ` / ${a})`);
+	return c;
+}
+
+function highlightDonut() {
+	const chart = charts.cat;
+	if (!chart) return;
+	const ds = chart.data.datasets[0];
+	const base = chart.$baseColors;
+	ds.backgroundColor = chart.data.labels.map((l, i) => (!S.category || l === S.category ? base[i] : withAlpha(base[i], 0.18)));
+	ds.offset = chart.data.labels.map((l) => (l === S.category ? 12 : 0));
+	ds.borderWidth = chart.data.labels.map((l) => (l === S.category ? 0 : 2));
+	chart.update();
 }
 
 function tabFanout(P, cur) {
@@ -598,11 +648,11 @@ function bind(P) {
 	document.getElementById("tg-prev")?.addEventListener("change", (e) => { S.prevLine = e.target.checked; renderApp(); });
 	document.getElementById("tg-comp")?.addEventListener("change", (e) => { S.compareComps = e.target.checked; renderApp(); });
 	$("tr.cat").forEach((tr) => {
-		const go = () => { S.category = S.category === tr.dataset.cat ? null : tr.dataset.cat; renderApp(); };
+		const go = () => selectCategory(tr.dataset.cat);
 		tr.addEventListener("click", go);
 		tr.addEventListener("keydown", (e) => { if (e.key === "Enter") go(); });
 	});
-	document.getElementById("clear-cat")?.addEventListener("click", () => { S.category = null; renderApp(); });
+	document.getElementById("clear-cat")?.addEventListener("click", () => selectCategory(null));
 	$("tr.prompt").forEach((tr) => {
 		const open = () => openPrompt(tr.dataset.prompt, runsOf(P.cur));
 		tr.addEventListener("click", open);
@@ -674,13 +724,16 @@ function drawCharts(P, cur, prev) {
 		const cites = cur.flatMap((r) => CITES_BY_RUN.get(r.id) || []);
 		const counts = cites.reduce((acc, c) => { const k = categoryOf(c.domain); acc.set(k, (acc.get(k) || 0) + 1); return acc; }, new Map());
 		const all = sortCategories([...counts.keys()]);
+		const baseColors = all.map((c) => categoryColor(c, all));
 		charts.cat = new Chart(cat, {
 			type: "doughnut",
-			data: { labels: all, datasets: [{ data: all.map((c) => counts.get(c)), backgroundColor: all.map((c) => categoryColor(c, all)), borderColor: css("--card"), borderWidth: 2 }] },
-			options: { maintainAspectRatio: false, cutout: "62%",
+			data: { labels: all, datasets: [{ data: all.map((c) => counts.get(c)), backgroundColor: baseColors.slice(), borderColor: css("--card"), borderWidth: 2, hoverOffset: 8 }] },
+			options: { maintainAspectRatio: false, cutout: "62%", layout: { padding: 12 },
 				plugins: { legend: { display: false }, tooltip: { backgroundColor: css("--card"), titleColor: css("--ink"), bodyColor: css("--ink"), borderColor: css("--line"), borderWidth: 1, callbacks: { label: (c) => `${c.label}: ${c.parsed} (${Math.round((c.parsed / cites.length) * 100)}%)` } } },
-				onClick: (_e, els) => { if (els[0]) { const k = all[els[0].index]; S.category = S.category === k ? null : k; renderApp(); } } },
+				onClick: (_e, els) => { if (els[0]) selectCategory(all[els[0].index]); } },
 		});
+		charts.cat.$baseColors = baseColors;
+		if (S.category) highlightDonut();
 	}
 }
 
