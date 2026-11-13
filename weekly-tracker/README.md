@@ -35,7 +35,7 @@ GitHub Actions (Mon 06:00 UTC) ─► scripts/run-weekly.ts ─► Supabase ─�
 
 Weekly loop: GitHub Actions scrapes on Monday, then you run `/weekly-tracker insights <slug>`, which exports, analyses, saves to Supabase, and updates the dashboard.
 
-The tables are locked with row-level security. The browser can only call `client_dashboard(token)` and `client_run_detail(token, run_id)`, so each link shows just its own client's data.
+The tables are locked with row-level security. The browser can only call `client_dashboard(token, password)` and `client_run_detail(token, run_id, password)`, and they return data only when the link token and that client's password both match.
 
 ## Design
 
