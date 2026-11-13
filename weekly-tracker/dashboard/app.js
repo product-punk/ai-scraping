@@ -396,7 +396,7 @@ function tabOverview(P, cur, prev) {
 		</div>
 	</section>
 	<section class="sec"><h2>What changed</h2><p class="lead">${esc(P.prevLabel ? `Compared ${P.prevLabel.replace(/^vs /, "with ")}` : "Compared with the previous period")}</p>
-		<div class="grid">
+		<div class="grid top">
 			<div class="card c7">${insight ? `<p class="headline">${esc(insight.headline)}</p>${insight.summary ? `<p class="summary">${esc(insight.summary)}</p>` : ""}` : ""}
 				<div class="alerts">${alerts.slice(0, 8).map((a) => `<div class="alert ${a.kind}"><b>${esc(a.title)}</b>${esc(a.text)}</div>`).join("")}</div></div>
 			<div class="card c5"><h3>Share of voice <small>mentions vs tracked competitors</small></h3>
