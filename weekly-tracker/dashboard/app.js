@@ -14,6 +14,12 @@
 
 const SOURCES = { "chatgpt-scraped": "Live ChatGPT", "openai-api": "OpenAI API" };
 const MODELS = { all: "All models", "chatgpt-scraped": "Live ChatGPT", "openai-api": "OpenAI API" };
+const MODEL_HINTS = {
+	all: "Both sources combined",
+	"chatgpt-scraped": "What people see on chatgpt.com, with web search",
+	"openai-api": "The OpenAI model answering directly",
+};
+const CARET = '<svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
 const RANGES = [["latest", "Latest scrape"], ["30", "Last 30 days"], ["90", "Last 90 days"], ["all", "All time"]];
 const REGIONS = { 2840: "United States", 2356: "India", 2826: "United Kingdom", 2124: "Canada", 2036: "Australia", 2276: "Germany", 2250: "France", 2724: "Spain" };
 const TABS = [
@@ -319,11 +325,11 @@ function filterBar(title, P) {
 					<label for="f-to">To</label><input type="date" id="f-to" value="${esc(S.to || "")}"><button class="apply" type="button" id="apply-custom">Apply</button></div></div>
 		</div>
 		<div class="pickers">
-			<div class="dd"><button type="button" class="pickbtn" data-menu="model">${icon('<path d="M12 3l1.9 5.8L20 10l-5 3.6L16.5 20 12 16.5 7.5 20 9 13.6 4 10l6.1-1.2z"/>')}${esc(MODELS[S.model])}</button>
-				<div class="menu" id="menu-model">${Object.entries(MODELS).map(([k, v]) => `<button class="opt ${S.model === k ? "on" : ""}" data-model="${k}" type="button">${v}</button>`).join("")}</div></div>
+			<div class="dd"><button type="button" class="pickbtn" data-menu="model" aria-haspopup="true" title="Switch AI source">${icon('<path d="M12 3l1.9 5.8L20 10l-5 3.6L16.5 20 12 16.5 7.5 20 9 13.6 4 10l6.1-1.2z"/>')}${esc(MODELS[S.model])}${CARET}</button>
+				<div class="menu" id="menu-model"><label>AI source</label>${Object.entries(MODELS).map(([k, v]) => `<button class="opt opt2 ${S.model === k ? "on" : ""}" data-model="${k}" type="button"><span><b>${v}</b><small>${MODEL_HINTS[k]}</small></span>${S.model === k ? "✓" : ""}</button>`).join("")}</div></div>
 			<div class="dd"><button type="button" class="pickbtn" data-menu="region">${icon('<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>')}${esc(region)}</button>
 				<div class="menu" id="menu-region"><label>Region</label><div style="padding:4px 10px 8px">Live ChatGPT answers are scraped from <b>${esc(region)}</b>. OpenAI API answers have no location.</div></div></div>
-			<div class="dd"><button type="button" class="pickbtn ${filtered ? "active" : ""}" data-menu="filter">${icon('<path d="M4 6h16M7 12h10M10 18h4"/>')}Filter${filtered ? " •" : ""}</button>
+			<div class="dd"><button type="button" class="pickbtn ${filtered ? "active" : ""}" data-menu="filter" aria-haspopup="true">${icon('<path d="M4 6h16M7 12h10M10 18h4"/>')}Filter${filtered ? " •" : ""}${CARET}</button>
 				<div class="menu" id="menu-filter">
 					<label>Prompt intent</label>${[["all", "All prompts"], ["commercial", "Commercial"], ["branded", "Branded / comparison"], ...extraIntents]
 						.map(([k, v]) => `<button class="opt ${S.intent === k ? "on" : ""}" data-intent="${esc(k)}" type="button">${esc(v)}</button>`).join("")}
@@ -544,6 +550,7 @@ function selectCategory(cat) {
 	if (lists) {
 		lists.innerHTML = catListsHtml();
 		document.getElementById("clear-cat")?.addEventListener("click", () => selectCategory(null));
+		makeSortable(lists);
 	}
 	highlightDonut();
 }
@@ -615,7 +622,71 @@ function tabInsights(P) {
 		</div></section>`;
 }
 
-const FOOT = `<div class="foot"><b>Visibility</b>: share of answers that name the company. <b>Cited rate</b>: share of answers citing its website. <b>Share of voice</b>: its mentions ÷ its plus tracked competitors' mentions. <b>Citation share</b>: its website's citations ÷ all citations. <b>Citation SOV</b>: its citations ÷ its plus tracked competitors' citations. <b>Fan-out referral</b>: surfaced search results the answer went on to cite. One run per prompt and source per scrape; answers vary run to run, so read trends across several weeks.</div>`;
+const DEFINITIONS = [
+	["Visibility", "Share of answers that name the company."],
+	["Cited rate", "Share of answers that cite the company's website."],
+	["Share of voice", "The company's mentions ÷ its own plus tracked competitors' mentions."],
+	["Citation share", "The company's website citations ÷ all citations."],
+	["Citation SOV", "The company's citations ÷ its own plus tracked competitors' citations."],
+	["Fan-out referral", "Search results the AI surfaced that the answer went on to cite."],
+];
+const FOOT = `<section class="foot"><h3>How these numbers work</h3>
+	<dl>${DEFINITIONS.map(([t, d]) => `<dt>${t}</dt><dd>${d}</dd>`).join("")}</dl>
+	<p>Each prompt runs once per source per scrape. AI answers vary from run to run, so read trends across several weeks.</p></section>`;
+
+// ---------- sortable tables ----------
+// Every data table gets click-to-sort headers. Sorting moves the existing rows
+// (no re-render), and the choice is remembered per table across re-renders.
+const SORTS = {};
+const tableKey = (t) => [...t.tHead.rows[0].cells].map((c) => c.dataset.label || c.textContent.trim()).join("|");
+function cellValue(td) {
+	const txt = (td?.textContent || "").trim();
+	if (!txt || txt === "-") return null;
+	const num = txt.replace(/,/g, "").match(/^[+-]?\d+(\.\d+)?/);
+	return num ? Number(num[0]) : txt.toLowerCase();
+}
+function sortTable(t, col, dir) {
+	const body = t.tBodies[0];
+	if (!body) return;
+	const rows = [...body.rows];
+	if (rows.length < 2 || rows.some((r) => r.cells.length === 1 && r.cells[0].colSpan > 1)) return;
+	rows.sort((a, b) => {
+		const x = cellValue(a.cells[col]), y = cellValue(b.cells[col]);
+		if (x === null && y === null) return 0;
+		if (x === null) return 1; // blanks always last
+		if (y === null) return -1;
+		const c = typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y));
+		return dir === "asc" ? c : -c;
+	});
+	for (const r of rows) body.appendChild(r);
+	[...t.tHead.rows[0].cells].forEach((th, i) => {
+		if (i === col) th.setAttribute("aria-sort", dir === "asc" ? "ascending" : "descending");
+		else th.removeAttribute("aria-sort");
+	});
+}
+function makeSortable(root = document) {
+	root.querySelectorAll("main table").forEach((t) => {
+		if (!t.tHead || t.dataset.sortable) return;
+		t.dataset.sortable = "1";
+		const key = tableKey(t);
+		[...t.tHead.rows[0].cells].forEach((th, i) => {
+			if (!th.textContent.trim()) return;
+			th.classList.add("sortable");
+			th.tabIndex = 0;
+			th.title = `Sort by ${th.textContent.trim()}`;
+			const go = () => {
+				const isNum = [...t.tBodies[0].rows].some((r) => typeof cellValue(r.cells[i]) === "number");
+				const cur = SORTS[key];
+				const dir = cur && cur.col === i ? (cur.dir === "asc" ? "desc" : "asc") : isNum ? "desc" : "asc";
+				SORTS[key] = { col: i, dir };
+				sortTable(t, i, dir);
+			};
+			th.addEventListener("click", go);
+			th.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } });
+		});
+		if (SORTS[key]) sortTable(t, SORTS[key].col, SORTS[key].dir);
+	});
+}
 
 // ---------- render ----------
 function renderApp() {
@@ -635,6 +706,7 @@ function renderApp() {
 	body = body.replace(`<section class="sec"><h2>${title}</h2>`, '<section class="sec">');
 	document.getElementById("app").innerHTML = shell(filterBar(title, P) + body + FOOT);
 	bind(P);
+	makeSortable();
 	if (cur.length) drawCharts(P, cur, prev);
 }
 
