@@ -568,6 +568,7 @@ function catSideHtml() {
 	const sites = [...dc.entries()].filter(([d]) => categoryOf(d) === S.category).sort((a, b) => b[1] - a[1]);
 	const total = sites.reduce((a, [, n]) => a + n, 0) || 1;
 	return `<h3 style="margin-top:20px;align-items:center">Top sites in ${esc(S.category)} <button type="button" class="linkbtn" id="side-clear">← All categories</button></h3>
+		${sites.length ? "" : `<p class="note">No citations in this category in the selected period.</p>`}
 		<table class="tight"><tbody>${sites.slice(0, 10).map(([d, n]) => `<tr class="${d === CLIENT_DOMAIN ? "me" : ""}"><td><span class="swatch" style="background:${color}"></span>${esc(d)}<div class="sub2"><span class="minibar" style="width:96px"><span style="width:${(n / total) * 100}%;background:${color}"></span></span>${pctTxt(n / total)} of this category</div></td><td class="num">${n}</td></tr>`).join("")}</tbody></table>
 		${sites.length > 10 ? `<div class="note">+ ${sites.length - 10} more in the domain list below.</div>` : ""}`;
 }
