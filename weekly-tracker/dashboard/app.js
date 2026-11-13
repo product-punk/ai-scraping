@@ -369,10 +369,12 @@ function bySource(P) {
 /** A one-point line chart reads as broken; say when the trend will exist instead. */
 function trendEmpty(P) {
 	const last = P.trend[P.trend.length - 1] || P.cur[P.cur.length - 1];
-	const next = last ? fmtDate(new Date(last.started_at).getTime() + 7 * DAY) : null;
+	// Only promise a date that's still ahead; weekly runs can be switched off.
+	const nextTs = last ? new Date(last.started_at).getTime() + 7 * DAY : 0;
+	const next = nextTs > Date.now() ? fmtDate(nextTs) : null;
 	return `<div class="trend-empty">${icon('<path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-6"/>')}
 		<div><b>${P.trend.length ? "Only one scrape in this view so far" : "No scrapes in this view"}</b>
-		<p>The trend line appears once there are two or more scrapes${next && P.trend.length ? `, from the next weekly run (around ${esc(next)})` : ""}. Try "All time" to include every scrape.</p></div></div>`;
+		<p>The trend line appears once there are two or more scrapes${next && P.trend.length ? `, from the next weekly run (around ${esc(next)})` : ", starting with the next scrape"}. Try "All time" to include every scrape.</p></div></div>`;
 }
 
 function tabOverview(P, cur, prev) {
