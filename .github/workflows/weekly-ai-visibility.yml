@@ -1,0 +1,44 @@
+name: Weekly AI visibility scrape
+
+on:
+  schedule:
+    # Mondays 06:00 UTC (11:30 IST / 01:00 US Eastern)
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+    inputs:
+      client:
+        description: "Client slug to run (blank = all active clients)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: weekly-ai-visibility
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: weekly-tracker/scripts
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Scrape and store in Supabase
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DATAFORSEO_LOGIN: ${{ secrets.DATAFORSEO_LOGIN }}
+          DATAFORSEO_PASSWORD: ${{ secrets.DATAFORSEO_PASSWORD }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CLIENT: ${{ inputs.client }}
+          TRIGGER: ${{ github.event_name == 'schedule' && 'scheduled' || 'manual' }}
+        run: |
+          args="--trigger $TRIGGER"
+          if [ -n "$CLIENT" ]; then args="$args --client $CLIENT"; fi
+          node weekly-tracker/scripts/run-weekly.ts $args

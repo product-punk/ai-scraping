@@ -1,0 +1,9 @@
+.env
+# Client setups (names, prompts, competitors) stay out of the public repo; they live in Supabase.
+clients/*.json
+!clients/example.json
+supabase/.temp/
+supabase/.branches/
+.netlify/
+dashboard/config.js
+exports/

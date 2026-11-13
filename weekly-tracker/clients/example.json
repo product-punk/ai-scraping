@@ -1,0 +1,21 @@
+{
+	"slug": "acme",
+	"name": "Acme",
+	"domain": "acme.com",
+	"aliases": ["Acme Inc"],
+	"location_code": 2840,
+	"language_code": "en",
+	"include_openai": true,
+	"prompts": ["best widget supplier in the us?", "how do industrial widgets work?"],
+	"competitors": [{ "name": "Widgetco", "domains": ["widgetco.com"], "aliases": [] }],
+	"profile": {
+		"business_type": "products",
+		"offerings": [{ "name": "Industrial widgets", "keywords": ["widget", "widgets"] }],
+		"brand_colors": { "primary": "#1f4fd1", "accent": "#f5a623", "dark": "#1b1f2a" },
+		"notes": "Competes with Widgetco on every offering."
+	},
+	"prompt_tags": {
+		"best widget supplier in the us?": { "offering": "Industrial widgets", "intent": "commercial" },
+		"how do industrial widgets work?": { "offering": "Industrial widgets", "intent": "informational" }
+	}
+}

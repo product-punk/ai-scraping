@@ -1,0 +1,12 @@
+# Netlify: set Base directory = weekly-tracker, and add env vars
+# SUPABASE_URL and SUPABASE_ANON_KEY (the public anon / sb_publishable_ key).
+[build]
+  publish = "dashboard"
+  command = "node scripts/write-dashboard-config.mjs"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+    Referrer-Policy = "no-referrer"
+    X-Frame-Options = "DENY"
