@@ -393,8 +393,8 @@ function computeAlerts(cur, prev) {
 		const label = `${r.prompt.length > 70 ? `${r.prompt.slice(0, 70)}…` : r.prompt} (${SOURCES[r.provider]})`;
 		if (p.brand_mentioned && !r.brand_mentioned) out.push({ kind: "bad", title: "No longer named", text: label });
 		if (!p.brand_mentioned && r.brand_mentioned) out.push({ kind: "good", title: "Now named", text: label });
-		if (p.brand_cited && !r.brand_cited) out.push({ kind: "bad", title: "Website no longer cited", text: label });
-		if (!p.brand_cited && r.brand_cited) out.push({ kind: "good", title: "Website now cited", text: label });
+		if (p.brand_cited && !r.brand_cited) out.push({ kind: "bad", title: "No longer cited", text: label });
+		if (!p.brand_cited && r.brand_cited) out.push({ kind: "good", title: "Now cited", text: label });
 	}
 	for (const c of DATA.client.competitors) {
 		const now = cur.filter((r) => compNamed(r, c.name)).length / cur.length;
@@ -469,7 +469,7 @@ function changeTags(now, before) {
 	if (!now || !before) return muted("-");
 	const t = [];
 	if (now.brand_mentioned !== before.brand_mentioned) t.push(now.brand_mentioned ? ["good", "Now named"] : ["bad", "No longer named"]);
-	if (now.brand_cited !== before.brand_cited) t.push(now.brand_cited ? ["good", "Now cited"] : ["bad", "Lost citation"]);
+	if (now.brand_cited !== before.brand_cited) t.push(now.brand_cited ? ["good", "Now cited"] : ["bad", "No longer cited"]);
 	return t.length ? t.map(([k, l]) => `<span class="chg ${k}">${l}</span>`).join("") : muted("No change");
 }
 
