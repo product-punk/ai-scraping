@@ -276,7 +276,7 @@ function delta(cur, prev, { text = true, blank = false } = {}) {
 	if (cur == null || prev == null) return text || blank ? "" : `<span class="delta flat">-</span>`;
 	const d = pct(cur) - pct(prev);
 	const cls = d === 0 ? "flat" : d > 0 ? "up" : "down";
-	return `<span class="delta ${cls}">${d > 0 ? "+" : ""}${d}${text ? " pts" : "%"}</span>`;
+	return `<span class="delta ${cls}">${d > 0 ? "+" : ""}${d} pts</span>`;
 }
 function kpi(label, value, prev, note, cls = "c3") {
 	const v = pct(value);
@@ -446,7 +446,7 @@ function tabOverview(P, cur, prev) {
 		<div class="grid top">
 			<div class="card c7">${insight ? `<p class="headline">${esc(insight.headline)}</p>${insight.summary ? `<p class="summary">${esc(insight.summary)}</p>` : ""}` : ""}
 				<div class="alerts">${alerts.slice(0, 8).map((a) => `<div class="alert ${a.kind}"><b>${esc(a.title)}</b>${esc(a.text)}</div>`).join("")}</div></div>
-			<div class="card c5"><h3>Share of voice <small>mentions vs tracked competitors</small></h3>
+			<div class="card c5"><h3>Share of voice · all prompts <small>mentions vs tracked competitors</small></h3>
 				<table><tbody>${rows.map((r) => `<tr class="${r.me ? "me" : ""}"><td>${esc(r.name)}</td><td class="num"><span class="minibar"><span style="width:${(r.mentions / totalMentions) * 100}%"></span></span>${pctTxt(r.mentions / totalMentions)}</td></tr>`).join("")}</tbody></table></div>
 		</div>
 	</section>`;
@@ -1032,5 +1032,38 @@ async function load(session) {
 		app.innerHTML = `<div class="card err">Couldn't load data. ${esc(e.message)}</div>`;
 	}
 }
+// ---------- auto-refresh ----------
+// New scrapes land in Supabase without a deploy; an open tab picks them up when it
+// regains focus or every 10 minutes while visible, keeping tab, filters and sorting.
+const dataSignature = (d) => `${(d.batches || []).map((b) => b.id).join(",")}|${(d.runs || []).length}|${(d.insights || []).length}|${JSON.stringify(d.client?.weekly || {})}`;
+let lastRefresh = 0;
+async function refreshData() {
+	if (!SESSION || !DATA || document.hidden || Date.now() - lastRefresh < 30000) return;
+	lastRefresh = Date.now();
+	try {
+		const data = await rpc("client_dashboard", { p_session: SESSION });
+		if (!data || data.error === "session") { store.del(SESSION_KEY); return showLogin("Your session ended. Please sign in again."); }
+		if (dataSignature(data) === dataSignature(DATA)) return;
+		const before = new Set(DATA.batches.map((b) => b.id));
+		const fresh = data.batches.filter((b) => !before.has(b.id));
+		DATA = data;
+		indexData();
+		renderApp();
+		if (fresh.length) toast(`New scrape loaded: ${fmtDate(fresh[fresh.length - 1].started_at)}`);
+	} catch {
+		// Offline or a blip: the next focus or interval tries again.
+	}
+}
+function toast(msg) {
+	const t = document.createElement("div");
+	t.className = "toast";
+	t.setAttribute("role", "status");
+	t.textContent = msg;
+	document.body.appendChild(t);
+	setTimeout(() => t.remove(), 5000);
+}
+document.addEventListener("visibilitychange", () => { if (!document.hidden) refreshData(); });
+setInterval(refreshData, 10 * 60 * 1000);
+
 if (new URLSearchParams(location.search).has("c")) history.replaceState(null, "", location.pathname + location.hash);
 load(store.get(SESSION_KEY));
