@@ -357,24 +357,10 @@ function computeAlerts(cur, prev) {
 	return out.length ? out : [{ kind: "info", title: "No major changes", text: "Every prompt held its result versus the previous period." }];
 }
 
-/** Visibility per source for the current period: real data for the space a trend chart would use. */
-function bySource(P) {
-	const rows = Object.keys(SOURCES).map((e) => ({ e, m: metricsOf(runsOf(P.cur, e)) })).filter((r) => r.m);
-	if (rows.length < 2) return "";
-	return `<div class="by-source"><h3>Visibility by source</h3>${rows.map(({ e, m }) => `<div class="bs-row"><span>${esc(SOURCES[e])}</span>
-		<span class="bs-bar"><span style="width:${pct(m.visibility)}%"></span></span><span class="bs-v">${pctTxt(m.visibility)}</span></div>
-		<div class="bs-sub">Named in ${Math.round(m.visibility * m.n)} of ${m.n} answers · website cited in ${pctTxt(m.citedRate)}</div>`).join("")}</div>`;
-}
-
-/** A one-point line chart reads as broken; say when the trend will exist instead. */
-function trendEmpty(P) {
-	const last = P.trend[P.trend.length - 1] || P.cur[P.cur.length - 1];
-	// Only promise a date that's still ahead; weekly runs can be switched off.
-	const nextTs = last ? new Date(last.started_at).getTime() + 7 * DAY : 0;
-	const next = nextTs > Date.now() ? fmtDate(nextTs) : null;
-	return `<div class="trend-empty">${icon('<path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-6"/>')}
-		<div><b>${P.trend.length ? "Only one scrape in this view so far" : "No scrapes in this view"}</b>
-		<p>The trend line appears once there are two or more scrapes${next && P.trend.length ? `, from the next weekly run (around ${esc(next)})` : ", starting with the next scrape"}. Try "All time" to include every scrape.</p></div></div>`;
+/** With one scrape the line is a single labelled point; say how it grows. */
+function trendNote(P) {
+	if (P.trend.length >= 2) return "";
+	return `<div class="note">${P.trend.length ? "First scrape on record. Each new scrape adds a point to this line." : "No scrapes in this view yet."}</div>`;
 }
 
 function tabOverview(P, cur, prev) {
@@ -391,10 +377,11 @@ function tabOverview(P, cur, prev) {
 		<div class="split">
 			<div>
 				<div class="big">${pctTxt(m.visibility)} <span class="d">${delta(m.visibility, pm?.visibility, { text: false, blank: true })}</span></div>
-				${P.trend.length < 2 ? trendEmpty(P) + bySource(P) : `<div class="chartbox"><canvas id="ch-vis" role="img" aria-label="Visibility over time"></canvas></div>
+				<div class="chartbox"><canvas id="ch-vis" role="img" aria-label="Visibility over time"></canvas></div>
 				<div class="toggles"><label><input type="checkbox" checked disabled> Current period</label>
 					<label><input type="checkbox" id="tg-prev" ${S.prevLine ? "checked" : ""}> Previous period</label>
-					<label><input type="checkbox" id="tg-comp" ${S.compareComps ? "checked" : ""}> Compare competitors</label></div>`}</div>
+					<label><input type="checkbox" id="tg-comp" ${S.compareComps ? "checked" : ""}> Compare competitors</label></div>
+				${trendNote(P)}</div>
 			<div><h3 style="font:500 14px var(--sans);color:var(--muted);margin:0">Visibility score rank</h3>
 				<div class="big">#${myRank}</div>
 				<ol class="rank">${rows.slice(0, 8).map((r, i) => `<li><span class="n">${i + 1}</span>${favicon(r.name, r.domain, r.me)}<span class="nm">${esc(r.name)}${r.me ? '<span class="owned">Owned</span>' : ""}</span><span class="v">${pctTxt(r.v)}</span><span class="dd2">${delta(r.v, r.pv, { text: false, blank: true })}</span></li>`).join("")}</ol></div>
@@ -461,7 +448,7 @@ function tabVisibility(P, cur, prev) {
 		</tbody></table></div>${br ? `<div class="note">Branded and comparison prompts (${br.n} answers) are kept out of commercial figures. Their visibility: ${pctTxt(br.visibility)}.</div>` : ""}</div>
 	</section>
 	<section class="sec"><h2>Visibility over time</h2><p class="lead">Visibility, cited rate and citation share per scrape</p>
-		<div class="card">${P.trend.length < 2 ? trendEmpty(P) : `<div class="chartbox"><canvas id="ch-vis2" role="img" aria-label="Visibility metrics over time"></canvas></div>`}</div></section>
+		<div class="card"><div class="chartbox"><canvas id="ch-vis2" role="img" aria-label="Visibility metrics over time"></canvas></div>${trendNote(P)}</div></section>
 	<section class="sec"><h2>You vs competitors</h2><p class="lead">Named, cited and share of mentions for tracked competitors</p>
 		<div class="card"><div class="scroll"><table>
 			<thead><tr><th>Company</th><th class="num">Named</th><th class="num">Change</th><th class="num">Cited</th><th class="num">Share of voice</th></tr></thead><tbody>
@@ -722,6 +709,36 @@ function area(color) {
 		return g;
 	};
 }
+// Draws each dataset's value above its point when there's only one scrape, so a
+// single point reads as a reading, not a rendering glitch.
+const pointLabels = {
+	id: "pointLabels",
+	afterDatasetsDraw(chart) {
+		if (chart.data.labels.length !== 1) return;
+		const { ctx } = chart;
+		const items = chart.data.datasets.map((ds, i) => {
+			const meta = chart.getDatasetMeta(i);
+			if (meta.hidden || ds.data[0] == null) return null;
+			const pt = meta.data[0];
+			return { x: pt.x + 14, y: pt.y, text: `${ds.label} ${ds.data[0]}%`, color: typeof ds.borderColor === "string" ? ds.borderColor : css("--ink") };
+		}).filter(Boolean).sort((p, q) => p.y - q.y);
+		// Stack labels that would collide (same or close values) 16px apart.
+		for (let i = 1; i < items.length; i++) if (items[i].y - items[i - 1].y < 16) items[i].y = items[i - 1].y + 16;
+		ctx.save();
+		ctx.font = "600 12px JetBrains Mono, monospace";
+		ctx.textAlign = "left";
+		ctx.textBaseline = "middle";
+		for (const it of items) { ctx.fillStyle = it.color; ctx.fillText(it.text, it.x, it.y); }
+		ctx.restore();
+	},
+};
+function singlePoint(opts, datasets, n) {
+	if (n !== 1) return opts;
+	opts.scales.x.offset = true;
+	for (const ds of datasets) ds.pointRadius = Math.max(ds.pointRadius || 0, ds === datasets[0] ? 7 : 5);
+	return opts;
+}
+
 function drawCharts(P, cur, prev) {
 	const brand = css("--brand"), brand2 = css("--brand-2");
 	const greys = [css("--comp-1"), css("--comp-2"), css("--comp-3")];
@@ -736,17 +753,18 @@ function drawCharts(P, cur, prev) {
 			ds.push({ label: "Previous period", data: trend.map((_, i) => { const b = prevTrend[i]; return b ? pct(metricsOf(runsOf([b]))?.visibility) : null; }), borderColor: brand2, borderDash: [6, 4], borderWidth: 2, tension: 0.35, pointRadius: 3 });
 		}
 		if (S.compareComps) {
-			entityRows(cur, prev).filter((r) => !r.me && r.mentions).slice(0, 3).forEach((r, i) => ds.push({ label: r.name, data: per((rs) => (rs.length ? rs.filter((x) => compNamed(x, r.name)).length / rs.length : null)), borderColor: greys[i], borderDash: [2, 3], borderWidth: 1.5, tension: 0.35, pointRadius: 2 }));
+			entityRows(cur, prev).filter((r) => !r.me && r.mentions).slice(0, 3).forEach((r, i) => ds.push({ label: r.name, data: per((rs) => (rs.length ? rs.filter((x) => compNamed(x, r.name)).length / rs.length : null)), borderColor: greys[i], backgroundColor: greys[i], borderDash: [2, 3], borderWidth: 1.5, tension: 0.35, pointRadius: 2, pointStyle: ["rectRot", "triangle", "rect"][i] }));
 		}
-		charts.vis = new Chart(vis, { type: "line", data: { labels, datasets: ds }, options: baseOpts() });
+		charts.vis = new Chart(vis, { type: "line", data: { labels, datasets: ds }, options: singlePoint(baseOpts(), ds, labels.length), plugins: [pointLabels] });
 	}
 	const vis2 = document.getElementById("ch-vis2");
 	if (vis2) {
-		charts.vis2 = new Chart(vis2, { type: "line", data: { labels, datasets: [
-			{ label: "Visibility", data: per((rs) => metricsOf(rs)?.visibility), borderColor: brand, backgroundColor: area(brand), fill: true, borderWidth: 3, tension: 0.35, pointRadius: 4 },
-			{ label: "Cited rate", data: per((rs) => metricsOf(rs)?.citedRate), borderColor: brand2, borderWidth: 2, tension: 0.35, pointRadius: 3 },
-			{ label: "Citation share", data: per((rs) => metricsOf(rs)?.citationShare), borderColor: brand2, borderDash: [6, 4], borderWidth: 2, tension: 0.35, pointRadius: 3 },
-		] }, options: baseOpts() });
+		const ds2 = [
+			{ label: "Visibility", data: per((rs) => metricsOf(rs)?.visibility), borderColor: brand, backgroundColor: area(brand), fill: true, borderWidth: 3, tension: 0.35, pointRadius: 4, pointBackgroundColor: brand },
+			{ label: "Cited rate", data: per((rs) => metricsOf(rs)?.citedRate), borderColor: brand2, backgroundColor: brand2, borderWidth: 2, tension: 0.35, pointRadius: 3, pointStyle: "rectRot" },
+			{ label: "Citation share", data: per((rs) => metricsOf(rs)?.citationShare), borderColor: brand2, backgroundColor: brand2, borderDash: [6, 4], borderWidth: 2, tension: 0.35, pointRadius: 3, pointStyle: "triangle" },
+		];
+		charts.vis2 = new Chart(vis2, { type: "line", data: { labels, datasets: ds2 }, options: singlePoint(baseOpts(), ds2, labels.length), plugins: [pointLabels] });
 	}
 	const cat = document.getElementById("ch-cat");
 	if (cat) {
