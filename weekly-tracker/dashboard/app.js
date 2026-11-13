@@ -452,19 +452,33 @@ function tabOverview(P, cur, prev) {
 	</section>`;
 }
 
+/** What moved for one prompt and source since the previous period: only differences, as small tags. */
+function changeTags(now, before) {
+	if (!now || !before) return muted("-");
+	const t = [];
+	if (now.brand_mentioned !== before.brand_mentioned) t.push(now.brand_mentioned ? ["good", "Now named"] : ["bad", "No longer named"]);
+	if (now.brand_cited !== before.brand_cited) t.push(now.brand_cited ? ["good", "Now cited"] : ["bad", "Lost citation"]);
+	return t.length ? t.map(([k, l]) => `<span class="chg ${k}">${l}</span>`).join("") : muted("No change");
+}
+
 function tabPrompts(P, cur, prev) {
 	const order = new Map(DATA.client.prompts.map((q, i) => [q, i]));
 	const prompts = [...new Set(cur.map((r) => r.prompt))].sort((a, b) => (order.get(a) ?? 999) - (order.get(b) ?? 999));
 	const engines = S.model === "all" ? Object.keys(SOURCES) : [S.model];
 	const prevBy = new Map(prev.map((r) => [`${r.prompt}|${r.provider}`, r]));
 	const curBy = new Map(cur.map((r) => [`${r.prompt}|${r.provider}`, r]));
-	return `<section class="sec"><h2>Prompts</h2><p class="lead">${prompts.length} prompts in this view. Click a row to read the full answer.</p>
+	// One offering for every prompt says nothing per row; show it once in the lead instead.
+	const offerings = new Set(prompts.map(offeringOf));
+	const oneOffering = offerings.size === 1 ? [...offerings][0] : null;
+	const changed = prev.length ? prompts.filter((q) => engines.some((e) => { const n = curBy.get(`${q}|${e}`), o = prevBy.get(`${q}|${e}`); return n && o && (n.brand_mentioned !== o.brand_mentioned || n.brand_cited !== o.brand_cited); })).length : 0;
+	return `<section class="sec"><h2>Prompts</h2><p class="lead">${prompts.length} prompts${oneOffering ? ` for ${esc(oneOffering)}` : ""}${prev.length ? `, ${changed} changed since the previous scrape` : ""}. Click a row to read the full answer.</p>
 	<div class="card"><div class="scroll"><table>
-		<thead><tr><th class="num">#</th><th>Prompt</th><th>Offering · intent</th>${engines.map((e) => `<th>${esc(SOURCES[e])}</th><th>Previous</th>`).join("")}<th>Competitors named</th></tr></thead><tbody>
+		<thead><tr><th class="num">#</th><th>Prompt</th>${oneOffering ? "" : "<th>Offering</th>"}${engines.map((e) => `<th>${esc(SOURCES[e])}</th>${prev.length ? `<th data-label="Change ${esc(SOURCES[e])}">Change</th>` : ""}`).join("")}<th>Competitors named</th></tr></thead><tbody>
 		${prompts.map((q) => {
 			const comps = [...new Set(cur.filter((r) => r.prompt === q).flatMap((r) => r.competitors_mentioned))];
-			return `<tr class="click prompt" tabindex="0" data-prompt="${esc(q)}"><td class="num">${(order.get(q) ?? 0) + 1}</td><td>${esc(q)}</td><td>${muted(`${esc(offeringOf(q))}${intentOf(q) ? ` · ${esc(intentOf(q))}` : ""}`)}</td>
-				${engines.map((e) => `<td>${pill(curBy.get(`${q}|${e}`))}</td><td>${prev.length ? pill(prevBy.get(`${q}|${e}`)) : muted("-")}</td>`).join("")}
+			const intent = intentOf(q);
+			return `<tr class="click prompt" tabindex="0" data-prompt="${esc(q)}"><td class="num">${(order.get(q) ?? 0) + 1}</td><td>${esc(q)}${intent ? ` <span class="tag">${esc(intent)}</span>` : ""}</td>${oneOffering ? "" : `<td>${muted(esc(offeringOf(q)))}</td>`}
+				${engines.map((e) => `<td>${pill(curBy.get(`${q}|${e}`))}</td>${prev.length ? `<td>${changeTags(curBy.get(`${q}|${e}`), prevBy.get(`${q}|${e}`))}</td>` : ""}`).join("")}
 				<td>${muted(esc(comps.join(", ") || "-"))}</td></tr>`;
 		}).join("") || `<tr><td colspan="8">${muted("No prompts match these filters.")}</td></tr>`}
 	</tbody></table></div></div></section>`;
