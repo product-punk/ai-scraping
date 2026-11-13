@@ -687,17 +687,38 @@ function tabInsights(P) {
 		</div></section>`;
 }
 
+// Wording follows the aeo-data-analysis skill's definitions so the dashboard and the
+// weekly Excel report describe each number the same way. Client-facing: no tool names.
 const DEFINITIONS = [
-	["Visibility", "Share of answers that name the company."],
-	["Cited rate", "Share of answers that cite the company's website."],
-	["Share of voice", "The company's mentions ÷ its own plus tracked competitors' mentions."],
-	["Citation share", "The company's website citations ÷ all citations."],
-	["Citation SOV", "The company's citations ÷ its own plus tracked competitors' citations."],
-	["Fan-out referral", "Search results the AI surfaced that the answer went on to cite."],
+	["Visibility", "How often AI answers mention your company by name.",
+		"Answers that name you ÷ all answers. Each prompt counts once per AI source per scrape, so 17 of 25 answers is 68%."],
+	["Cited rate", "How often AI answers use a page on your website as a source.",
+		"Answers citing at least one page on your site ÷ all answers. An answer can name you without citing you, and cite you without naming you."],
+	["Share of voice", "Your share of the mentions, compared with the competitors tracked here.",
+		"Your mentions ÷ (your mentions + tracked competitors' mentions). 100% means none of the tracked competitors were named, not that no one else was."],
+	["Citation share", "How much of everything the AI cited came from your website.",
+		"Citations to your site ÷ all citations across the answers."],
+	["Citation SOV", "Your citations compared with tracked competitors' citations, ignoring every other site.",
+		"Your citations ÷ (your citations + tracked competitors' citations)."],
+	["Fan-out referral", "How often a page the AI found while searching ended up cited in its answer.",
+		"Search results that were also cited (same site or same page) ÷ all search results the AI surfaced. Live ChatGPT only."],
 ];
-const FOOT = `<section class="foot"><h3>How these numbers work</h3>
-	<dl>${DEFINITIONS.map(([t, d]) => `<dt>${t}</dt><dd>${d}</dd>`).join("")}</dl>
-	<p>Each prompt runs once per source per scrape. AI answers vary from run to run, so read trends across several weeks.</p></section>`;
+const TERMS = [
+	["Commercial vs branded prompts", "Commercial prompts are buying questions that don't name you{{EXAMPLE}}. Branded prompts name you or compare you with someone, so you are almost always mentioned. They are reported separately so they don't inflate the headline numbers."],
+	["Live ChatGPT vs OpenAI API", "Live ChatGPT is what people see on chatgpt.com, with web search, asked from your target country. OpenAI API is the underlying model answering directly, with no location."],
+	["Directional", "An offering with fewer than 3 prompts. Treat its numbers as a signal, not a verdict."],
+];
+/** An example commercial prompt from this client's own set (never another client's). */
+function examplePrompt() {
+	const q = DATA.client.prompts.find((p) => isCommercial(p) && !isBranded(p));
+	if (!q) return "";
+	return ` ("${q.length > 60 ? `${q.slice(0, 57).trim()}…` : q}")`;
+}
+const foot = () => `<section class="foot"><h3>How these numbers work</h3>
+	<dl class="defs">${DEFINITIONS.map(([t, what, how]) => `<dt>${t}</dt><dd><p>${what}</p><p class="how"><span>How it's counted:</span> ${how}</p></dd>`).join("")}</dl>
+	<h3>Terms used</h3>
+	<dl class="defs">${TERMS.map(([t, d]) => `<dt>${t}</dt><dd><p>${esc(d.replace("{{EXAMPLE}}", examplePrompt()))}</p></dd>`).join("")}</dl>
+	<p class="caveat">AI answers vary from run to run, so a single scrape is a snapshot. Read trends across several weeks before acting on a change.</p></section>`;
 
 // ---------- sortable tables ----------
 // Every data table gets click-to-sort headers. Sorting moves the existing rows
@@ -769,7 +790,7 @@ function renderApp() {
 	else body = tabOverview(P, cur, prev);
 	// A first section titled like the page itself ("Citations" under "Citations") only stutters.
 	body = body.replace(`<section class="sec"><h2>${title}</h2>`, '<section class="sec">');
-	document.getElementById("app").innerHTML = shell(filterBar(title, P) + body + FOOT);
+	document.getElementById("app").innerHTML = shell(filterBar(title, P) + body + foot());
 	bind(P);
 	makeSortable();
 	if (cur.length) drawCharts(P, cur, prev);
