@@ -14,8 +14,12 @@
 //   "actions": [{ "priority": 1, "title": "...", "detail": "..." }],
 //   "competitors": [{ "name": "...", "note": "..." }],
 //   "outreach": [{ "domain": "...", "tier": "P1", "url": "...", "angle": "...", "gap": "..." }],
-//   "report_file": "acme-2026-11-16-commercial.xlsx"
+//   "report_file": "acme-2026-11-16-commercial.xlsx",
+//   "domain_categories": { "coursera.org": "Course platforms", ... },  // optional, merged into the client
+//   "category_order": ["Course platforms", "News & media", ...]       // optional, display order
 // }
+// Universal categories (own site, competitor, government, institution, platform) are
+// derived by the dashboard; domain_categories holds the client's vertical ones.
 import { readFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 import { sb } from "./lib.ts";
@@ -38,7 +42,7 @@ async function main() {
 	if (!batch) throw new Error(`Batch ${data.batch_id} does not belong to ${values.client}`);
 
 	const status = values.draft ? "draft" : "published";
-	const { batch_id, previous_batch_id, headline, summary, report_file, ...rest } = data;
+	const { batch_id, previous_batch_id, headline, summary, report_file, domain_categories, category_order, ...rest } = data;
 	const content = {
 		metrics: rest.metrics ?? {},
 		findings: rest.findings ?? [],
@@ -57,6 +61,14 @@ async function main() {
 		content,
 		report_file: report_file ?? null,
 	}, "return=minimal");
+	if (domain_categories || category_order) {
+		const [cur] = await sb<{ profile: Record<string, unknown> }[]>("GET", `clients?select=profile&id=eq.${client.id}`);
+		const profile = { ...(cur?.profile ?? {}) };
+		if (domain_categories) profile.domain_categories = { ...((profile.domain_categories as object) ?? {}), ...domain_categories };
+		if (Array.isArray(category_order)) profile.category_order = category_order;
+		await sb("PATCH", `clients?id=eq.${client.id}`, { profile }, "return=minimal");
+		console.log(`Updated citation categories: ${Object.keys(domain_categories ?? {}).length} domains${Array.isArray(category_order) ? `, order of ${category_order.length}` : ""}.`);
+	}
 	console.log(`Saved ${status} insights for ${values.client}, batch ${batch_id}: "${headline}"`);
 }
 

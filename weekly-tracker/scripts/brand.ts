@@ -5,6 +5,7 @@
 //   node weekly-tracker/scripts/brand.ts --client acme                 # scrape + save
 //   node weekly-tracker/scripts/brand.ts --client acme --dry-run       # show picks only
 //   node weekly-tracker/scripts/brand.ts --client acme --primary "#0a5" --accent "#f90"   # manual override
+import { readFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 import { type Client, env, sb } from "./lib.ts";
 
@@ -16,10 +17,11 @@ const { values } = parseArgs({
 		accent: { type: "string" },
 		dark: { type: "string" },
 		icon: { type: "string" }, // explicit icon/logo URL to use instead of scraping
+		"icon-file": { type: "string" }, // local square icon (svg/png) to upload, e.g. a cropped vector mark
 	},
 });
 if (!values.client) {
-	console.error('Usage: brand.ts --client <slug> [--dry-run] [--primary "#hex"] [--accent "#hex"] [--dark "#hex"] [--icon <url>]');
+	console.error('Usage: brand.ts --client <slug> [--dry-run] [--primary "#hex"] [--accent "#hex"] [--dark "#hex"] [--icon <url> | --icon-file <path>]');
 	process.exit(1);
 }
 
@@ -155,15 +157,26 @@ function iconCandidates(html: string, base: string): { url: string; score: numbe
 	return out.sort((a, b) => b.score - a.score);
 }
 
+/** PNG width from the IHDR header, for a low-resolution warning (0 when unknown). */
+function pngWidth(bytes: Buffer): number {
+	return bytes.length > 24 && bytes.readUInt32BE(0) === 0x89504e47 ? bytes.readUInt32BE(16) : 0;
+}
+
 async function uploadIcon(client: Client, url: string): Promise<string | null> {
 	const res = await get(url);
 	if (!res) return null;
 	const type = (res.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase();
 	if (!type.startsWith("image/")) return null;
 	const bytes = Buffer.from(await res.arrayBuffer());
+	return storeIcon(client, bytes, type, url);
+}
+
+async function storeIcon(client: Client, bytes: Buffer, type: string, label: string): Promise<string | null> {
 	if (bytes.length < 100 || bytes.length > 2_000_000) return null;
+	const w = pngWidth(bytes);
+	if (w && w < 128) console.warn(`  Low-resolution icon (${w}px, ${label}): it will look soft in the dashboard. Prefer a vector mark via --icon-file.`);
 	const ext = { "image/svg+xml": "svg", "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/gif": "gif" }[type] ?? "ico";
-	if (values["dry-run"]) return `${url} (${type}, ${bytes.length} bytes — not uploaded)`;
+	if (values["dry-run"]) return `${label} (${type}, ${bytes.length} bytes, not uploaded)`;
 
 	const key = env("SUPABASE_SERVICE_ROLE_KEY");
 	const path = `${client.id}/icon.${ext}`;
@@ -210,7 +223,15 @@ async function main() {
 
 	let iconUrl: string | null = null;
 	let iconSource: string | null = null;
-	for (const cand of values.icon ? [{ url: values.icon, score: 0 }] : iconCandidates(html, base)) {
+	if (values["icon-file"]) {
+		const file = values["icon-file"];
+		const ext = file.split(".").pop()?.toLowerCase() ?? "";
+		const type = { svg: "image/svg+xml", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp" }[ext];
+		if (!type) throw new Error(`Unsupported icon file type: .${ext}`);
+		iconUrl = await storeIcon(client, readFileSync(file), type, file);
+		iconSource = `file:${file.split("/").pop()}`;
+	}
+	for (const cand of iconUrl ? [] : values.icon ? [{ url: values.icon, score: 0 }] : iconCandidates(html, base)) {
 		iconUrl = await uploadIcon(client, cand.url);
 		if (iconUrl) { iconSource = cand.url; break; }
 	}

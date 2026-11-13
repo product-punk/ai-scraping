@@ -44,6 +44,7 @@ It ignores greys, near-white and near-black. If the colours look wrong, override
 
 - The client's square icon goes in a **56×56 tile with 16px radius**, top left, beside the client name. The tile background is white, so dark or transparent logos stay visible.
 - Sources are tried in this order: `apple-touch-icon`, then SVG icon, then the largest PNG icon, then an `<img>` whose name or class contains "logo", then `favicon.ico`.
+- If the site only offers a small raster icon (under 128px, the script warns), crop the mark out of the site's SVG logo and upload it with `brand.ts --icon-file mark.svg`. Scaler's 60px touch icon looked soft and cropped, so its mark was cut from the vector wordmark.
 - The icon is stored in Supabase Storage (bucket `client-assets`, at `<client uuid>/icon.*`), never hotlinked. It is also used as the browser-tab favicon.
 - If no icon is found, the tile shows the client's initials on `--brand`.
 - Always look at the scraped icon before sharing the dashboard. Sites with bot protection can return a placeholder.
@@ -79,19 +80,24 @@ It ignores greys, near-white and near-black. If the colours look wrong, override
 
 ## 6. Layout
 
-- **Grid:** 12 columns, gaps in multiples of 8px (8/16/24/32).
-- **Order from top to bottom:**
-  1. Header: logo tile and client name; "Updated" status chip; source switch (Live ChatGPT / OpenAI API / Combined)
-  2. **KPI row**, 4 × 3 columns, matching the aeo-data-analysis summary tiles: visibility on commercial prompts, visibility on all prompts, SOV on commercial prompts, brand citation share
-  3. **Visibility over time** chart (8 columns) and the **This week** panel (4 columns: insight headline and alerts)
-  4. Scorecard by source (12 columns)
-  5. Offering performance (12 columns)
-  6. You vs competitors (6) and most-cited sources (6)
-  7. Fan-out (6) and priority actions (6)
-  8. Prompt table (12 columns; click a row to read the answer)
-  9. Outreach targets (12 columns, only when insights include them)
-  10. Definitions footer
-- Below 960px everything stacks to full width, with KPIs in two columns. Below 640px it is one column. The page must never scroll sideways.
+- **Shell:** a 248px left sidebar holds the client logo tile and name, then the tabs: **Overview · Prompts · Visibility · Citations · Fan-out · Insights**. Each tab has its own URL hash (`#citations`). Below 900px the sidebar becomes a top bar with a scrollable tab strip.
+- **Top line of every tab:** the page title, with the **theme toggle ("Light mode" / "Dark mode") and sign out at the top right**. Keep them at the top; they are hard to find at the bottom of the sidebar.
+- **Filter bar:**
+  - Left: Latest scrape · Last 30 days · Last 90 days · All time · Custom range (from/to). Every period is compared with the previous period of the same length.
+  - Right: model (All models / Live ChatGPT / OpenAI API), region (from the client's location code), and Filter (prompt intent, offering).
+  - The selected range uses `--brand-soft` with a `--brand` outline. Pickers are outlined cards.
+- **Overview:** the Profound-style split card (visibility score and trend chart with "Previous period" / "Compare competitors" toggles | visibility score rank with the client marked *Owned*), then the 4 KPI tiles, then What changed (alerts) next to share of voice.
+- **Visibility:** scorecard by source, trend chart, you vs competitors, offering performance.
+- **Citations:**
+  - 4 KPIs: total citations, unique domains, citation share, citation SOV.
+  - Category doughnut with the total in the centre and a "Top site per category" list under it, beside the category table. Clicking either filters the domain and page lists.
+  - Top cited domains and most-cited pages.
+- **Citation categories are per client:**
+  - Universal ones are derived in the page: Your site, Competitor, Government, Institution, Platform.
+  - Vertical ones come from `clients.profile.domain_categories` / `category_order`, written by the aeo-data-analysis skill through `save-insights.ts`.
+  - Anything else shows as Unclassified, never guessed.
+  - Each category gets a distinct colour: Your site = `--brand`, Competitor = `--bad`, Unclassified = grey.
+- **Grid:** 12 columns with 8px-multiple gaps. Below 1100px cards stack. The page must never scroll sideways.
 
 ## 7. Metric definitions
 
