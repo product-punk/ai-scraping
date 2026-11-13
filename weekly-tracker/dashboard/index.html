@@ -136,6 +136,14 @@ h1 { font: 600 28px/1.2 var(--sans); margin: 0 0 16px; letter-spacing: -0.01em; 
 .trend-empty svg { width: 28px; height: 28px; flex: none; color: var(--brand); }
 .trend-empty b { color: var(--ink); font-weight: 600; }
 .trend-empty p { margin: 4px 0 0; max-width: 60ch; }
+.by-source { margin-top: 24px; }
+.by-source h3 { font: 500 14px var(--sans); color: var(--muted); margin: 0 0 12px; }
+.bs-row { display: grid; grid-template-columns: 120px minmax(0, 1fr) 56px; gap: 12px; align-items: center; margin-top: 12px; }
+.bs-bar { height: 10px; border-radius: 5px; background: var(--line); overflow: hidden; }
+.bs-bar span { display: block; height: 100%; background: var(--brand); border-radius: 5px; }
+.bs-v { font: 700 16px var(--mono); text-align: right; }
+.bs-sub { color: var(--muted); font-size: 12px; margin: 4px 0 0 132px; }
+@media (max-width: 600px) { .bs-row { grid-template-columns: 96px minmax(0, 1fr) 48px; } .bs-sub { margin-left: 0; } }
 .donut-center { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; pointer-events: none; }
 .donut-center .n { font: 700 28px/1 var(--mono); }
 .donut-center .l { color: var(--muted); font-size: 11px; line-height: 1.35; margin: 4px auto 0; max-width: 112px; }

@@ -357,6 +357,15 @@ function computeAlerts(cur, prev) {
 	return out.length ? out : [{ kind: "info", title: "No major changes", text: "Every prompt held its result versus the previous period." }];
 }
 
+/** Visibility per source for the current period: real data for the space a trend chart would use. */
+function bySource(P) {
+	const rows = Object.keys(SOURCES).map((e) => ({ e, m: metricsOf(runsOf(P.cur, e)) })).filter((r) => r.m);
+	if (rows.length < 2) return "";
+	return `<div class="by-source"><h3>Visibility by source</h3>${rows.map(({ e, m }) => `<div class="bs-row"><span>${esc(SOURCES[e])}</span>
+		<span class="bs-bar"><span style="width:${pct(m.visibility)}%"></span></span><span class="bs-v">${pctTxt(m.visibility)}</span></div>
+		<div class="bs-sub">Named in ${Math.round(m.visibility * m.n)} of ${m.n} answers · website cited in ${pctTxt(m.citedRate)}</div>`).join("")}</div>`;
+}
+
 /** A one-point line chart reads as broken; say when the trend will exist instead. */
 function trendEmpty(P) {
 	const last = P.trend[P.trend.length - 1] || P.cur[P.cur.length - 1];
@@ -380,7 +389,7 @@ function tabOverview(P, cur, prev) {
 		<div class="split">
 			<div>
 				<div class="big">${pctTxt(m.visibility)} <span class="d">${delta(m.visibility, pm?.visibility, { text: false, blank: true })}</span></div>
-				${P.trend.length < 2 ? trendEmpty(P) : `<div class="chartbox"><canvas id="ch-vis" role="img" aria-label="Visibility over time"></canvas></div>
+				${P.trend.length < 2 ? trendEmpty(P) + bySource(P) : `<div class="chartbox"><canvas id="ch-vis" role="img" aria-label="Visibility over time"></canvas></div>
 				<div class="toggles"><label><input type="checkbox" checked disabled> Current period</label>
 					<label><input type="checkbox" id="tg-prev" ${S.prevLine ? "checked" : ""}> Previous period</label>
 					<label><input type="checkbox" id="tg-comp" ${S.compareComps ? "checked" : ""}> Compare competitors</label></div>`}</div>
