@@ -105,6 +105,16 @@ async function runClient(client: Client, trigger: string): Promise<number> {
 }
 
 async function main() {
+	// Scheduled runs obey the global switch (settings.weekly_scrape_enabled, owner-only).
+	// Off → exit before any API call; clients' own switches stay saved for when it's on.
+	if (values.trigger === "scheduled") {
+		const [g] = await sb<{ value: boolean }[]>("GET", "settings?select=value&key=eq.weekly_scrape_enabled");
+		if (g?.value !== true) {
+			const waiting = await sb<{ slug: string }[]>("GET", "clients?select=slug&active=eq.true");
+			console.log(`Weekly scraping is switched off globally; nothing scraped.${waiting.length ? ` Waiting for it to be switched on: ${waiting.map((c) => c.slug).join(", ")}.` : ""}`);
+			return;
+		}
+	}
 	// No --client: the Monday set (clients switched on). Named clients run regardless
 	// of their weekly switch, so a one-off manual scrape works for anyone.
 	let query = "clients?select=*&order=name";

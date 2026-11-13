@@ -46,6 +46,7 @@ Commands also cover `scripts/brand.ts` (scrape a client's icon and colours) and 
 
 ## Notes
 
+- Weekly switches: the global master switch is `settings.weekly_scrape_enabled` (owner only, `client.ts global on|off|status`). Each client's own switch is `clients.active`, which clients flip from the dashboard (logged in `weekly_toggle_log`). Scheduled runs need both; global off always wins.
 - Client JSON files are gitignored because this repo is public. Supabase is the source of truth.
 - GitHub turns off scheduled workflows in public repos after 60 days with no commits. If that happens, re-enable the workflow in the Actions tab.
 - Free Supabase projects pause after a week of inactivity. The weekly write normally keeps the project active.

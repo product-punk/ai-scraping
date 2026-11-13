@@ -44,14 +44,14 @@ Run after Monday's batch lands (check with `gh run list --workflow weekly-ai-vis
 
 ## schedule: the Monday auto-scrape, with two switches (to control API cost)
 
-1. **Global**: GitHub repo variable `WEEKLY_SCRAPE_ENABLED`. Unless it's `true`, Monday does nothing.
-2. **Per client**: `clients.active`. A Monday run scrapes only clients switched on. **New clients start off.** Re-running `client.ts upsert` doesn't change the switch.
+1. **Global (owner only):** `settings.weekly_scrape_enabled` in Supabase. Unless it is on, the Monday run exits before any API call. Clients can't change it. Change it only when the user explicitly asks.
+2. **Per client:** `clients.active`. **Clients flip their own** from the dashboard ("Weekly updates" in the top bar; each flip is logged in `weekly_toggle_log`). You can also flip one with `client.ts weekly <slug> on|off`. New clients start off.
 
-Both are **off** until the user says otherwise. Manual `run --client <slug>` scrapes a named client regardless of either switch.
+Global off always wins: a client who switched on sees "On · paused by your account team", their choice is kept, and they're included from the first Monday after the global switch goes on. Manual `run --client <slug>` ignores both switches.
 
-- `schedule status`: show `gh variable get WEEKLY_SCRAPE_ENABLED --repo product-punk/ai-scraping`, `gh workflow list --repo product-punk/ai-scraping` (confirms the workflow exists on GitHub), `node weekly-tracker/scripts/client.ts list` (per-client `weekly=ON/off`), and `node weekly-tracker/scripts/run-weekly.ts --dry-run` (what next Monday would cost).
-- `schedule on` / `schedule off`: `gh variable set WEEKLY_SCRAPE_ENABLED --body true|false --repo product-punk/ai-scraping`. Only turn it on when the user explicitly asks, and show the dry-run cost first.
-- `weekly <slug> on|off`: `node weekly-tracker/scripts/client.ts weekly <slug> on|off`. Use this when a client starts or ends. Show the new Monday dry-run cost after switching one on.
+- `schedule status`: `node weekly-tracker/scripts/client.ts global status` shows the global state, which clients are switched on (waiting, if global is off), the cost per Monday and the latest toggles. Also run `gh workflow list --repo product-punk/ai-scraping` to confirm the workflow exists.
+- `schedule on` / `schedule off`: `node weekly-tracker/scripts/client.ts global on|off`. Show `global status` (who's waiting and the weekly cost) before turning it on.
+- `weekly <slug> on|off`: `node weekly-tracker/scripts/client.ts weekly <slug> on|off`.
 
 ## import: load an existing ad-hoc scrape as a dated batch
 

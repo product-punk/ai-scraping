@@ -91,6 +91,22 @@ async function setActive(slug: string, active: boolean) {
 	console.log(rows.length ? `${slug}: weekly scrape ${active ? "ON (included on Mondays)" : "OFF (skipped on Mondays; dashboard still works)"}` : `No client "${slug}"`);
 }
 
+/** Owner-only master switch for scheduled weekly runs (clients can't change it). */
+async function globalCmd(state?: string) {
+	if (state === "on" || state === "off") {
+		await sb("PATCH", "settings?key=eq.weekly_scrape_enabled", { value: state === "on", updated_at: new Date().toISOString(), updated_by: "client.ts" }, "return=minimal");
+	} else if (state && state !== "status") {
+		throw new Error("Usage: global on|off|status");
+	}
+	const [g] = await sb<{ value: boolean; updated_at: string; updated_by: string }[]>("GET", "settings?select=*&key=eq.weekly_scrape_enabled");
+	const on = await sb<{ slug: string; prompts: string[]; include_openai: boolean }[]>("GET", "clients?select=slug,prompts,include_openai&active=eq.true&order=slug");
+	const cost = on.reduce((a, c) => a + c.prompts.length * (0.004 + (c.include_openai ? 0.01 : 0)), 0);
+	console.log(`Global weekly scraping: ${g?.value ? "ON" : "OFF"} (changed ${g?.updated_at ?? "?"} by ${g?.updated_by ?? "?"})`);
+	console.log(`Clients switched on: ${on.map((c) => c.slug).join(", ") || "none"}, about $${cost.toFixed(2)} per Monday${g?.value ? "" : " once the global switch is on"}.`);
+	const log = await sb<{ username: string; enabled: boolean; created_at: string; clients: { slug: string } }[]>("GET", "weekly_toggle_log?select=username,enabled,created_at,clients(slug)&order=created_at.desc&limit=5");
+	for (const l of log) console.log(`  ${l.created_at.slice(0, 16)}  ${l.clients.slug}: ${l.enabled ? "on" : "off"} by ${l.username}`);
+}
+
 async function userCmd([sub, a, b, c]: string[]) {
 	if (sub === "add" && a && b) return setUser(a, b, c);
 	if (sub === "reset" && a) {
@@ -120,7 +136,8 @@ async function main() {
 	if ((cmd === "pause" || cmd === "resume") && arg) return setActive(arg, cmd === "resume");
 	if (cmd === "weekly" && arg && ["on", "off"].includes(process.argv[4] ?? "")) return setActive(arg, process.argv[4] === "on");
 	if (cmd === "user") return userCmd(process.argv.slice(3));
-	console.error("Usage: client.ts upsert <file.json> | list | weekly <slug> on|off | user add <client> <username> [pw] | user reset <username> [pw] | user remove <username> | user list [client]");
+	if (cmd === "global") return globalCmd(arg);
+	console.error("Usage: client.ts upsert <file.json> | list | weekly <slug> on|off | user add <client> <username> [pw] | user reset <username> [pw] | user remove <username> | user list [client] | global on|off|status");
 	process.exit(1);
 }
 

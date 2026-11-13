@@ -24,9 +24,8 @@ concurrency:
 
 jobs:
   scrape:
-    # Monday runs are switched on/off with the repo variable WEEKLY_SCRAPE_ENABLED
-    # ("true" = on; unset = off). Manual runs always go ahead.
-    if: github.event_name == 'workflow_dispatch' || vars.WEEKLY_SCRAPE_ENABLED == 'true'
+    # Monday runs check the global switch in Supabase (settings.weekly_scrape_enabled)
+    # and each client's own switch; when off, the job exits before any API call.
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:

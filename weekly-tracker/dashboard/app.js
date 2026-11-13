@@ -309,6 +309,41 @@ function shell(inner) {
 	</div>`;
 }
 
+// ---------- weekly updates switch (client-controlled; the global switch is owner-only) ----------
+function nextMonday() {
+	const d = new Date();
+	const add = (8 - d.getUTCDay()) % 7 || 7;
+	const next = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + add, 6));
+	if (d.getUTCDay() === 1 && d.getUTCHours() < 6) next.setUTCDate(next.getUTCDate() - 7);
+	return next;
+}
+function weeklyState() {
+	const w = DATA.client.weekly || {};
+	if (!w.enabled) return { key: "off", label: "Off", detail: "Your prompts aren't being re-checked weekly." };
+	if (!w.global) return { key: "paused", label: "On · paused", detail: "Weekly runs are paused for all accounts by your account team right now. Your choice is saved and tracking starts as soon as they resume." };
+	return { key: "on", label: "On", detail: `Next update ${fmtDate(nextMonday())}. Your prompts are re-checked every Monday and this dashboard updates automatically.` };
+}
+function weeklyControl() {
+	const st = weeklyState();
+	const on = DATA.client.weekly?.enabled;
+	return `<div class="dd"><button type="button" class="pickbtn weekly-btn" data-menu="weekly" aria-haspopup="true"><span class="wdot ${st.key}"></span>Weekly updates: ${esc(st.label)}${CARET}</button>
+		<div class="menu weekly-menu" id="menu-weekly"><label>Weekly updates</label>
+			<div class="wbody"><p>${esc(st.detail)}</p>
+			<button type="button" class="${on ? "btn-ghost" : "btn"}" id="weekly-set" data-on="${on ? "0" : "1"}">${on ? "Turn off weekly updates" : "Turn on weekly updates"}</button></div></div></div>`;
+}
+async function setWeekly(enabled) {
+	const btn = document.getElementById("weekly-set");
+	if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
+	try {
+		const res = await rpc("client_set_weekly", { p_session: SESSION, p_enabled: enabled });
+		if (res?.error === "session") return showLogin("Your session ended. Please sign in again.");
+		DATA.client.weekly = { enabled: res.enabled, global: res.global };
+		renderApp();
+	} catch (e) {
+		if (btn) { btn.disabled = false; btn.textContent = `Couldn't save: ${e.message}`; }
+	}
+}
+
 function filterBar(title, P) {
 	const offerings = [...new Set(DATA.client.prompts.map(offeringOf))];
 	const intents = [...new Set(DATA.client.prompts.map(intentOf).filter(Boolean))];
@@ -316,7 +351,7 @@ function filterBar(title, P) {
 	const region = locs.length ? locs.map((l) => REGIONS[l] || `Location ${l}`).join(", ") : REGIONS[DATA.client.location_code] || "Default";
 	const filtered = S.intent !== "all" || S.offering !== "all";
 	const extraIntents = intents.filter((i) => !["commercial", "branded", "comparison"].includes(i)).map((i) => [i, i[0].toUpperCase() + i.slice(1)]);
-	return `<div class="topline"><h1>${esc(title)}</h1><div class="top-actions">${themeButton(true)}<button class="icon-btn" id="logout" type="button" aria-label="Sign out" title="Sign out">${icon('<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>')}</button></div></div>
+	return `<div class="topline"><h1>${esc(title)}</h1><div class="top-actions">${weeklyControl()}${themeButton(true)}<button class="icon-btn" id="logout" type="button" aria-label="Sign out" title="Sign out">${icon('<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>')}</button></div></div>
 	<div class="bar">
 		<div class="ranges">
 			${RANGES.map(([k, v]) => `<button type="button" data-range="${k}" class="${S.range === k ? "on" : ""}">${v}</button>`).join("")}
@@ -744,6 +779,7 @@ function bind(P) {
 	const $ = (s) => document.querySelectorAll(s);
 	document.getElementById("theme-toggle")?.addEventListener("click", toggleTheme);
 	document.getElementById("logout")?.addEventListener("click", logout);
+	document.getElementById("weekly-set")?.addEventListener("click", (e) => setWeekly(e.currentTarget.dataset.on === "1"));
 	$(".fav img").forEach((img) => img.addEventListener("error", () => { img.parentElement.textContent = img.parentElement.dataset.init || ""; }));
 	$("[data-range]").forEach((b) => b.addEventListener("click", () => { S.range = b.dataset.range; renderApp(); }));
 	$("[data-menu]").forEach((b) => b.addEventListener("click", (e) => {

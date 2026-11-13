@@ -57,11 +57,21 @@ nav.tabs a[aria-current="page"] svg { color: var(--brand); }
 .icon-btn { display: inline-grid; place-items: center; width: 38px; height: 38px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer; }
 .icon-btn:hover { background: var(--hover); }
 .icon-btn svg { width: 18px; height: 18px; }
+.wdot { width: 8px; height: 8px; border-radius: 50%; background: var(--comp-2); flex: none; }
+.wdot.on { background: var(--good); box-shadow: 0 0 6px var(--good); }
+.wdot.paused { background: var(--amber); }
+.weekly-menu { width: 320px; }
+.wbody button { white-space: nowrap; }
+.wbody { padding: 0 10px 8px; }
+.wbody p { margin: 4px 0 12px; color: var(--muted); max-width: 34ch; }
+.btn-ghost { display: inline-flex; align-items: center; min-height: 40px; padding: 0 16px; border-radius: 10px; border: 1px solid var(--line); background: transparent; color: var(--ink); font-weight: 600; cursor: pointer; }
+.btn-ghost:hover { background: var(--hover); }
+button.btn { border: 0; cursor: pointer; }
 .topline { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; }
 .topline h1 { margin: 0; }
-.top-actions { display: flex; gap: 8px; }
+.top-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .icon-btn.wide { width: auto; display: inline-flex; gap: 8px; justify-content: center; padding: 0 12px; font-size: 13px; font-weight: 500; }
-@media (max-width: 480px) { .icon-btn.wide span { display: none; } .icon-btn.wide { width: 38px; padding: 0; } }
+@media (max-width: 480px) { .icon-btn.wide span { display: none; } .icon-btn.wide { width: 38px; padding: 0; } .topline { flex-wrap: wrap; } .weekly-menu { right: auto; left: 0; } }
 main { min-width: 0; padding: 32px 40px 64px; max-width: 1360px; }
 
 @media (max-width: 900px) {
